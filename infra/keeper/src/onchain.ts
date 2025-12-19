@@ -117,7 +117,7 @@ export class OnChainClient {
 
         try {
             const [vaultPda] = deriveVaultPda(assetId);
-            const vault = await this.program.account.vault.fetch(vaultPda);
+            const vault = await (this.program.account as any).vault.fetch(vaultPda);
 
             return {
                 authority: vault.authority as PublicKey,

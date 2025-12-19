@@ -1,0 +1,21 @@
+{
+    "name": "Mock USDC",
+    "symbol": "USDC",
+    "description": "Mock USD Coin for testing on Solana devnet. Used by OptionsFi vault for premium payments.",
+    "image": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+    "external_url": "https://optionsfi.xyz",
+    "attributes": [
+        {
+            "trait_type": "Type",
+            "value": "Stablecoin"
+        },
+        {
+            "trait_type": "Peg",
+            "value": "USD"
+        },
+        {
+            "trait_type": "Network",
+            "value": "Solana Devnet"
+        }
+    ]
+}

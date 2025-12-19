@@ -5,7 +5,7 @@ import vaultIdl from "../anchor/vault_idl.json";
 
 // Program IDs on devnet
 export const VAULT_PROGRAM_ID = new PublicKey(
-    "7WHJ1bpNs8pifws5g2wjSD1D4sf3xjT7MNYWz7At4ozn"
+    "A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94"
 );
 
 export const ORACLE_PROGRAM_ID = new PublicKey(
@@ -156,8 +156,11 @@ export async function fetchVaultData(
             const totalShares = Number(vaultAccount.totalShares);
             const sharePrice = totalShares > 0 ? totalAssets / totalShares : 1.0;
 
-            // Mock APY for now - will calculate from historical data
-            const apy = 12.5;
+            // Calculate APY from epoch premium (annualized)
+            // epochPremiumPerTokenBps = premium earned per token in basis points
+            // Annualize: assume 52 epochs per year (weekly)
+            const epochPremiumBps = Number(vaultAccount.epochPremiumPerTokenBps || 0);
+            const apy = (epochPremiumBps / 100) * 52; // Convert bps to % and annualize
             const tvl = totalAssets / 1e6; // Assuming 6 decimals
 
             return {
