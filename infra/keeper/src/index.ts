@@ -1,0 +1,532 @@
+/**
+ * OptionsFi V2 Keeper Service
+ * 
+ * Manages vault epoch lifecycle with:
+ * - Real vault TVL fetching
+ * - Black-Scholes premium pricing
+ * - Historical volatility from Yahoo Finance
+ * - On-chain premium collection and settlement
+ */
+
+import { Connection, PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
+import * as anchor from "@coral-xyz/anchor";
+import { CronJob } from "cron";
+import axios from "axios";
+import express, { Request, Response } from "express";
+import winston from "winston";
+
+import { OnChainClient, createWallet, deriveVaultPda, VaultData } from "./onchain";
+import {
+    getVolatility,
+    calculateCoveredCallPremium,
+    premiumToBps,
+    blackScholes
+} from "./pricing";
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+const config = {
+    rpcUrl: process.env.RPC_URL || "https://api.devnet.solana.com",
+    walletPath: process.env.WALLET_PATH || process.env.ANCHOR_WALLET || "~/.config/solana/id.json",
+    assetId: process.env.ASSET_ID || "NVDAx",
+    ticker: process.env.TICKER || "NVDA", // Yahoo Finance ticker for volatility
+    cronSchedule: process.env.CRON_SCHEDULE || "0 */6 * * *", // Every 6 hours
+    epochDurationDays: parseInt(process.env.EPOCH_DURATION_DAYS || "7"),
+    strikeDeltaBps: parseInt(process.env.STRIKE_DELTA_BPS || "1000"), // 10% OTM
+    riskFreeRate: parseFloat(process.env.RISK_FREE_RATE || "0.05"), // 5%
+    volatilityLookbackDays: parseInt(process.env.VOL_LOOKBACK_DAYS || "30"),
+    healthPort: parseInt(process.env.HEALTH_PORT || "3010"),
+    rfqRouterUrl: process.env.RFQ_ROUTER_URL || "http://localhost:3005",
+    quoteWaitMs: parseInt(process.env.QUOTE_WAIT_MS || "10000"),
+};
+
+// Pyth Hermes API for real-time prices
+const HERMES_URL = "https://hermes.pyth.network";
+const PYTH_FEED_IDS: Record<string, string> = {
+    NVDAx: "0x7c3bc7d2829a3c87cbc1b1dc05abeadafaa5a8ce970ee7b2d5baa0f079ce0a10", // NVDA/USD
+};
+
+// ============================================================================
+// Logger
+// ============================================================================
+
+const logger = winston.createLogger({
+    level: "info",
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+            return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
+        })
+    ),
+    transports: [new winston.transports.Console()],
+});
+
+// ============================================================================
+// State
+// ============================================================================
+
+interface KeeperState {
+    connection: Connection;
+    wallet: anchor.Wallet;
+    onchainClient: OnChainClient | null;
+    lastRunTime: number | null;
+    lastRunSuccess: boolean | null;
+    runCount: number;
+    errorCount: number;
+    isRunning: boolean;
+    // Epoch tracking
+    epochStrikePrice: number;
+    epochNotional: bigint;
+    epochPremiumEarned: bigint;
+}
+
+const state: KeeperState = {
+    connection: null!,
+    wallet: null!,
+    onchainClient: null,
+    lastRunTime: null,
+    lastRunSuccess: null,
+    runCount: 0,
+    errorCount: 0,
+    isRunning: false,
+    epochStrikePrice: 0,
+    epochNotional: BigInt(0),
+    epochPremiumEarned: BigInt(0),
+};
+
+// ============================================================================
+// Price Oracle
+// ============================================================================
+
+interface OraclePrice {
+    price: number;     // Price in dollars
+    confidence: number; // Confidence interval
+    timestamp: Date;
+}
+
+async function fetchOraclePrice(): Promise<OraclePrice | null> {
+    const feedId = PYTH_FEED_IDS[config.assetId];
+
+    if (!feedId) {
+        logger.warn("No Pyth feed ID for asset", { assetId: config.assetId });
+        return null;
+    }
+
+    try {
+        const response = await axios.get(
+            `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`,
+            { timeout: 5000 }
+        );
+
+        const priceData = response.data?.parsed?.[0]?.price;
+        if (!priceData) {
+            throw new Error("Invalid price response");
+        }
+
+        const price = parseFloat(priceData.price) * Math.pow(10, priceData.expo);
+        const conf = parseFloat(priceData.conf) * Math.pow(10, priceData.expo);
+
+        logger.info("Fetched price from Pyth", {
+            assetId: config.assetId,
+            price: price.toFixed(2),
+            confidence: conf.toFixed(4)
+        });
+
+        return {
+            price,
+            confidence: conf,
+            timestamp: new Date(),
+        };
+    } catch (error: any) {
+        logger.error("Failed to fetch oracle price", { error: error.message });
+        return null;
+    }
+}
+
+// ============================================================================
+// Epoch Roll Logic
+// ============================================================================
+
+async function runEpochRoll(): Promise<boolean> {
+    if (state.isRunning) {
+        logger.warn("Epoch roll already in progress");
+        return false;
+    }
+
+    state.isRunning = true;
+    state.runCount++;
+
+    logger.info("========================================");
+    logger.info("Starting epoch roll", { runNumber: state.runCount });
+    logger.info("========================================");
+
+    try {
+        // Step 1: Fetch real vault data
+        logger.info("Step 1: Fetching vault data...");
+        const vaultData = state.onchainClient
+            ? await state.onchainClient.fetchVault(config.assetId)
+            : null;
+
+        if (!vaultData) {
+            throw new Error("Failed to fetch vault data");
+        }
+
+        const totalAssets = Number(vaultData.totalAssets) / 1e6; // Assuming 6 decimals
+        const currentExposure = Number(vaultData.epochNotionalExposed) / 1e6;
+        const utilizationCap = vaultData.utilizationCapBps / 10000;
+        const maxExposure = totalAssets * utilizationCap;
+        const availableExposure = maxExposure - currentExposure;
+
+        logger.info("Vault state", {
+            totalAssets,
+            currentExposure,
+            maxExposure,
+            availableExposure,
+            epoch: vaultData.epoch.toString(),
+        });
+
+        if (availableExposure <= 0) {
+            logger.warn("No available exposure capacity");
+            state.isRunning = false;
+            return false;
+        }
+
+        // Step 2: Fetch oracle price
+        logger.info("Step 2: Fetching oracle price...");
+        const oraclePrice = await fetchOraclePrice();
+        if (!oraclePrice) {
+            throw new Error("Failed to fetch oracle price");
+        }
+
+        // Step 3: Calculate strike price (OTM by strike delta)
+        logger.info("Step 3: Calculating strike price...");
+        const spotPrice = oraclePrice.price;
+        const strikeDelta = config.strikeDeltaBps / 10000;
+        const strikePrice = spotPrice * (1 + strikeDelta);
+
+        logger.info("Strike calculated", {
+            spot: spotPrice.toFixed(2),
+            strikeDelta: `${strikeDelta * 100}%`,
+            strike: strikePrice.toFixed(2),
+        });
+
+        // Step 4: Fetch historical volatility from Yahoo Finance
+        logger.info("Step 4: Fetching historical volatility...");
+        let volatility: number;
+        try {
+            volatility = await getVolatility(config.ticker, config.volatilityLookbackDays);
+            logger.info("Historical volatility fetched", {
+                ticker: config.ticker,
+                volatility: `${(volatility * 100).toFixed(1)}%`,
+                lookbackDays: config.volatilityLookbackDays,
+            });
+        } catch (volError: any) {
+            logger.error("Failed to fetch volatility, using fallback", { error: volError.message });
+            volatility = 0.4; // 40% fallback
+        }
+
+        // Step 5: Calculate Black-Scholes premium
+        logger.info("Step 5: Calculating Black-Scholes premium...");
+        const premiumPerToken = calculateCoveredCallPremium({
+            spot: spotPrice,
+            strikePercent: strikePrice / spotPrice,
+            daysToExpiry: config.epochDurationDays,
+            volatility: volatility,
+            riskFreeRate: config.riskFreeRate,
+        });
+
+        const premiumBps = premiumToBps(premiumPerToken, spotPrice);
+
+        logger.info("Black-Scholes premium calculated", {
+            premiumPerToken: premiumPerToken.toFixed(4),
+            premiumBps,
+            volatility: `${(volatility * 100).toFixed(1)}%`,
+            daysToExpiry: config.epochDurationDays,
+        });
+
+        // Step 6: Calculate notional to expose (use available capacity)
+        const notionalTokens = Math.min(availableExposure, totalAssets * 0.5); // Max 50% per roll
+        const totalPremium = notionalTokens * premiumPerToken;
+
+        logger.info("Notional calculated", {
+            notionalTokens: notionalTokens.toFixed(2),
+            totalPremium: totalPremium.toFixed(2),
+        });
+
+        // Step 7: Create RFQ (if RFQ router is available)
+        logger.info("Step 6: Creating RFQ...");
+        let rfqFilled = false;
+        let actualPremium = totalPremium;
+
+        try {
+            const rfqResponse = await axios.post(`${config.rfqRouterUrl}/rfq`, {
+                underlying: config.assetId,
+                optionType: "CALL",
+                strike: strikePrice,
+                expiry: Date.now() + config.epochDurationDays * 24 * 60 * 60 * 1000,
+                size: notionalTokens,
+                premiumFloor: Math.floor(totalPremium * 0.8), // 80% of BS price minimum
+            }, { timeout: 5000 });
+
+            const rfqId = rfqResponse.data.rfqId;
+            logger.info("RFQ created", { rfqId });
+
+            // Wait for quotes
+            await new Promise(resolve => setTimeout(resolve, config.quoteWaitMs));
+
+            // Fill RFQ
+            const fillResponse = await axios.post(
+                `${config.rfqRouterUrl}/rfq/${rfqId}/fill`,
+                {},
+                { timeout: 5000 }
+            );
+
+            if (fillResponse.data.filled) {
+                actualPremium = fillResponse.data.filled.premium / 1e6; // Convert from base units
+                rfqFilled = true;
+                logger.info("RFQ filled", {
+                    maker: fillResponse.data.filled.maker,
+                    premium: actualPremium.toFixed(2),
+                });
+            }
+        } catch (rfqError: any) {
+            logger.warn("RFQ failed, using BS premium", { error: rfqError.message });
+        }
+
+        // Step 7: Record exposure on-chain
+        logger.info("Step 7: Recording exposure on-chain...");
+        if (state.onchainClient) {
+            const notionalBaseUnits = BigInt(Math.floor(notionalTokens * 1e6));
+            const premiumBaseUnits = BigInt(Math.floor(actualPremium * 1e6));
+
+            const recordTx = await state.onchainClient.recordNotionalExposure(
+                config.assetId,
+                notionalBaseUnits,
+                premiumBaseUnits
+            );
+            logger.info("Exposure recorded", { tx: recordTx });
+
+            // Track for settlement
+            state.epochStrikePrice = strikePrice;
+            state.epochNotional = state.epochNotional + notionalBaseUnits;
+            state.epochPremiumEarned = state.epochPremiumEarned + premiumBaseUnits;
+        }
+
+        logger.info("========================================");
+        logger.info("Epoch roll completed successfully", {
+            notional: notionalTokens.toFixed(2),
+            premium: actualPremium.toFixed(2),
+            premiumBps,
+            strike: strikePrice.toFixed(2),
+            rfqFilled,
+        });
+        logger.info("========================================");
+
+        state.lastRunTime = Date.now();
+        state.lastRunSuccess = true;
+        state.isRunning = false;
+        return true;
+
+    } catch (error: any) {
+        logger.error("Epoch roll failed", { error: error.message, stack: error.stack });
+        state.lastRunTime = Date.now();
+        state.lastRunSuccess = false;
+        state.errorCount++;
+        state.isRunning = false;
+        return false;
+    }
+}
+
+// ============================================================================
+// Settlement Logic
+// ============================================================================
+
+async function runSettlement(): Promise<{ success: boolean; message: string }> {
+    logger.info("Running settlement...");
+
+    try {
+        // Fetch current oracle price
+        const oraclePrice = await fetchOraclePrice();
+        if (!oraclePrice) {
+            throw new Error("Failed to fetch oracle price for settlement");
+        }
+
+        const currentPrice = oraclePrice.price;
+        const strikePrice = state.epochStrikePrice;
+
+        logger.info("Settlement price check", {
+            currentPrice: currentPrice.toFixed(2),
+            strikePrice: strikePrice.toFixed(2),
+        });
+
+        // Determine ITM/OTM (for CALL: ITM if spot > strike)
+        const isITM = currentPrice > strikePrice && strikePrice > 0;
+        let payoffAmount = BigInt(0);
+        let settlementType = "OTM";
+
+        if (isITM && state.epochNotional > 0) {
+            // Calculate payoff: (spot - strike) / spot * notional (simplified)
+            const intrinsicValue = currentPrice - strikePrice;
+            const payoffRatio = intrinsicValue / currentPrice;
+            payoffAmount = BigInt(Math.floor(Number(state.epochNotional) * payoffRatio));
+            settlementType = "ITM";
+
+            logger.info("ITM settlement", {
+                intrinsicValue: intrinsicValue.toFixed(2),
+                payoffRatio: (payoffRatio * 100).toFixed(2) + "%",
+                payoffAmount: (Number(payoffAmount) / 1e6).toFixed(2),
+            });
+
+            // TODO: Pay settlement to MM using paySettlement()
+        } else {
+            logger.info("OTM settlement - vault keeps premium");
+        }
+
+        // Advance epoch on-chain
+        if (state.onchainClient) {
+            const premiumToCredit = state.epochPremiumEarned > payoffAmount
+                ? state.epochPremiumEarned - payoffAmount
+                : BigInt(0);
+
+            const tx = await state.onchainClient.advanceEpoch(config.assetId, premiumToCredit);
+            logger.info("Epoch advanced", { tx });
+        }
+
+        // Record settlement values for response
+        const savedStrike = state.epochStrikePrice;
+        const savedPremium = state.epochPremiumEarned;
+
+        // Reset epoch tracking
+        state.epochStrikePrice = 0;
+        state.epochNotional = BigInt(0);
+        state.epochPremiumEarned = BigInt(0);
+
+        const netGain = Number(savedPremium - payoffAmount) / 1e6;
+
+        return {
+            success: true,
+            message: `${settlementType} Settlement - Net: ${netGain.toFixed(2)} tokens`,
+        };
+
+    } catch (error: any) {
+        logger.error("Settlement failed", { error: error.message });
+        return {
+            success: false,
+            message: error.message,
+        };
+    }
+}
+
+// ============================================================================
+// Initialization
+// ============================================================================
+
+async function initialize(): Promise<void> {
+    logger.info("========================================");
+    logger.info("OptionsFi Keeper Service Starting");
+    logger.info("========================================");
+    logger.info("Configuration", {
+        assetId: config.assetId,
+        ticker: config.ticker,
+        cronSchedule: config.cronSchedule,
+        epochDuration: `${config.epochDurationDays}d`,
+        strikeDelta: `${config.strikeDeltaBps}bps`,
+        volatilityLookback: `${config.volatilityLookbackDays}d`,
+    });
+
+    // Initialize connection
+    state.connection = new Connection(config.rpcUrl, "confirmed");
+
+    // Load wallet
+    const walletPath = config.walletPath.replace("~", process.env.HOME || "");
+    state.wallet = createWallet(walletPath);
+    logger.info("Wallet loaded", { pubkey: state.wallet.publicKey.toBase58() });
+
+    // Initialize on-chain client
+    state.onchainClient = new OnChainClient(state.connection, state.wallet);
+    await state.onchainClient.initialize();
+    logger.info("On-chain client initialized");
+}
+
+// ============================================================================
+// HTTP Server
+// ============================================================================
+
+function startHealthServer(): void {
+    const app = express();
+    app.use(express.json());
+
+    // CORS for frontend
+    app.use((req, res, next) => {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.header("Access-Control-Allow-Headers", "Content-Type");
+        if (req.method === "OPTIONS") {
+            return res.sendStatus(200);
+        }
+        next();
+    });
+
+    app.get("/health", (req: Request, res: Response) => {
+        res.json({
+            status: "healthy",
+            lastRunTime: state.lastRunTime,
+            lastRunSuccess: state.lastRunSuccess,
+            runCount: state.runCount,
+            errorCount: state.errorCount,
+            isRunning: state.isRunning,
+            config: {
+                assetId: config.assetId,
+                ticker: config.ticker,
+                epochDuration: config.epochDurationDays,
+            },
+        });
+    });
+
+    app.post("/trigger", async (req: Request, res: Response) => {
+        logger.info("Manual trigger received");
+        const success = await runEpochRoll();
+        res.json({ success, message: success ? "Epoch roll completed" : "Epoch roll failed" });
+    });
+
+    app.post("/settle", async (req: Request, res: Response) => {
+        logger.info("Manual settlement trigger received");
+        const result = await runSettlement();
+        res.json(result);
+    });
+
+    app.listen(config.healthPort, () => {
+        logger.info(`Health server listening on port ${config.healthPort}`);
+    });
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+async function main(): Promise<void> {
+    await initialize();
+
+    // Schedule epoch rolls
+    const cronJob = new CronJob(config.cronSchedule, async () => {
+        logger.info("Scheduled epoch roll triggered");
+        await runEpochRoll();
+    });
+    cronJob.start();
+    logger.info("Scheduled epoch rolls", { schedule: config.cronSchedule });
+
+    // Start health server
+    startHealthServer();
+
+    logger.info("Keeper service ready");
+    logger.info("========================================");
+}
+
+main().catch((error) => {
+    logger.error("Fatal error", { error });
+    process.exit(1);
+});

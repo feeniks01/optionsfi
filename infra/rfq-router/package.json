@@ -1,0 +1,15 @@
+{
+    "name": "optionsfi-rfq-router",
+    "version": "1.0.0",
+    "description": "OptionsFi RFQ Router - Quote Aggregation Service",
+    "main": "index.js",
+    "scripts": {
+        "dev": "node index.js",
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "uuid": "^9.0.0",
+        "ws": "^8.14.2"
+    }
+}
