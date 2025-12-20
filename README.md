@@ -8,7 +8,7 @@ https://www.youtube.com/watch?v=3tbL4IyPB34
 
 ## What It Does
 
-Users deposit tokenized stocks (xStocks like NVDAx) into a vault. The vault automatically sells weekly covered call options to market makers and collects premium. Premium is reinvested, increasing the value of vault shares. Users can withdraw at epoch boundaries.
+Vaults are a reference client built on OptionsFi’s RFQ-based options settlement layer. Deposited tokenized equities are exposed to option markets by issuing RFQs to professional market makers, executing priced options on-chain, and crediting premium back to vault shares on a per-epoch basis.
 
 **Example:** Deposit 100 NVDAx → Vault sells 10% OTM covered calls → Earns ~1% weekly premium → Withdraw 104+ NVDAx after a month
 
@@ -44,7 +44,7 @@ Users deposit tokenized stocks (xStocks like NVDAx) into a vault. The vault auto
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | Vault Program | `programs/vault/` | On-chain Anchor program. Handles deposits, withdrawals, share minting, premium accounting. |
-| Keeper | `infra/keeper/` | Off-chain Node.js service. Fetches oracle prices, calculates Black-Scholes premium, creates RFQs, records exposure, triggers settlement. |
+| Keeper | `infra/keeper/` | Off-chain Node.js service. Fetches oracle prices, calculates reference pricing parameters and minimum premium constraints (e.g. Black-Scholes bounds), creates RFQs, records exposure, triggers settlement. |
 | RFQ Router | `infra/rfq-router/` | WebSocket server for market maker quote aggregation. Fills best quote. |
 | Mock MM | `infra/rfq-router/mock-mm.js` | Simulated market maker for testing. Quotes premium and transfers tokens on fill. |
 | Frontend | `app/` | Next.js UI. Wallet connection, deposit/withdraw flows, vault stats. |
@@ -171,9 +171,16 @@ cd app && npm run dev
 
 ## Security Considerations
 
+- All RFQ fills are atomic on-chain transactions, eliminating counterparty settlement risk.
 - 80% utilization cap: Maximum 80% of vault TVL can be exposed to options
 - Epoch-gated withdrawals: Prevents manipulation by forcing withdrawals to wait until settlement
 - On-chain accounting: All premium and exposure recorded on-chain
+
+## Roadmap
+
+- Support additional structured products (collars, puts) using the same RFQ rails
+- Expand RFQ participation to multiple independent market makers
+- Generalize the RFQ protocol for third-party derivative products
 
 ## License
 
