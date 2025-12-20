@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { Play, Square, CheckCircle, AlertCircle, Loader2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { fetchVaultData } from "../lib/vault-sdk";
 
 // Minimal demo panel for sidebar - bland styling to not draw attention
 
@@ -17,6 +19,7 @@ interface KeeperHealth {
 }
 
 export function SidebarDemoPanel({ collapsed = false }: SidebarDemoPanelProps) {
+    const { connection } = useConnection();
     const [isExpanded, setIsExpanded] = useState(false);
     const [keeperOnline, setKeeperOnline] = useState(false);
     const [isRolling, setIsRolling] = useState(false);
@@ -26,6 +29,19 @@ export function SidebarDemoPanel({ collapsed = false }: SidebarDemoPanelProps) {
 
     const keeperUrl = process.env.NEXT_PUBLIC_KEEPER_URL || "http://localhost:3010";
 
+    // Fetch vault state to determine if there's active exposure
+    const fetchVaultState = async () => {
+        try {
+            const vaultData = await fetchVaultData(connection, "NVDAx");
+            if (vaultData) {
+                const hasExposure = BigInt(vaultData.epochNotionalExposed) > BigInt(0);
+                setVaultState(hasExposure ? "ACTIVE" : "IDLE");
+            }
+        } catch (error) {
+            console.warn("Failed to fetch vault state:", error);
+        }
+    };
+
     // Check keeper health
     const checkKeeperHealth = async () => {
         try {
@@ -34,7 +50,7 @@ export function SidebarDemoPanel({ collapsed = false }: SidebarDemoPanelProps) {
                 signal: AbortSignal.timeout(3000)
             });
             const data = await response.json();
-            setKeeperOnline(data.status === "ok");
+            setKeeperOnline(data.status === "healthy");
         } catch {
             setKeeperOnline(false);
         }
@@ -42,9 +58,14 @@ export function SidebarDemoPanel({ collapsed = false }: SidebarDemoPanelProps) {
 
     useEffect(() => {
         checkKeeperHealth();
-        const interval = setInterval(checkKeeperHealth, 15000);
-        return () => clearInterval(interval);
-    }, []);
+        fetchVaultState();
+        const healthInterval = setInterval(checkKeeperHealth, 15000);
+        const vaultInterval = setInterval(fetchVaultState, 10000);
+        return () => {
+            clearInterval(healthInterval);
+            clearInterval(vaultInterval);
+        };
+    }, [connection]);
 
     const triggerRoll = async () => {
         setIsRolling(true);

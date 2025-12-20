@@ -295,7 +295,7 @@ export default function VaultDetailPage() {
                     <p className="text-xs text-gray-400 flex items-center justify-end gap-1">
                         Est. APY (7 epochs) <Info className="w-3 h-3 text-gray-500" />
                     </p>
-                    <p className="text-3xl font-bold text-green-400">{vaultData?.apy || vaultMeta.apy}%</p>
+                    <p className="text-3xl font-bold text-green-400">{(vaultData?.apy || vaultMeta.apy).toFixed(2)}%</p>
                 </div>
             </div>
 
@@ -459,66 +459,68 @@ export default function VaultDetailPage() {
                             </div>
                         )}
 
-                        {/* RFQ Section */}
-                        <div className="mt-3 p-3 rounded-lg bg-gray-900/40 border border-gray-800/40">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-gray-400">Request Quote</span>
-                                <span className="text-xs text-gray-500">Test RFQ Integration</span>
-                            </div>
-
-                            {rfq.routerOnline ? (
-                                <button
-                                    onClick={() => rfq.requestQuote({
-                                        underlying: vaultMeta.symbol,
-                                        spotPrice: underlyingPrice || 100,
-                                        strikeOffsetPct: vaultMeta.strikeOffset,
-                                        notionalAmount: 1000 * 1e6, // $1000 notional
-                                        epochDurationHours: 168, // 7 days
-                                    })}
-                                    disabled={rfq.rfqLoading || rfq.rfqStatus === 'OPEN'}
-                                    className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
-                                    style={{
-                                        backgroundColor: rfq.rfqLoading || rfq.rfqStatus === 'OPEN' ? '#374151' : theme.accentSoft,
-                                        color: theme.accent,
-                                        borderWidth: '1px',
-                                        borderColor: theme.accentBorder,
-                                    }}
-                                >
-                                    {rfq.rfqLoading ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            Requesting...
-                                        </span>
-                                    ) : rfq.rfqStatus === 'OPEN' ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Radio className="w-4 h-4 animate-pulse" />
-                                            Collecting {rfq.quoteCount} quotes...
-                                        </span>
-                                    ) : (
-                                        'Request Quote from Market Makers'
-                                    )}
-                                </button>
-                            ) : (
-                                <p className="text-xs text-gray-500 text-center py-2">
-                                    RFQ Router offline - Start with: <code className="bg-gray-800 px-1 rounded">npm run dev</code> in rfq-router
-                                </p>
-                            )}
-
-                            {/* Quote Result */}
-                            {rfq.bestPremium && rfq.rfqStatus === 'FILLED' && (
-                                <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-green-400">Best Quote Accepted</span>
-                                        <span className="text-green-400 font-semibold">
-                                            +${(rfq.bestPremium / 1e6).toFixed(4)}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        From: {rfq.bestMaker?.slice(0, 8)}...
-                                    </p>
+                        {/* RFQ Section - Hidden via env var if not needed */}
+                        {process.env.NEXT_PUBLIC_HIDE_RFQ_SECTION !== "true" && (
+                            <div className="mt-3 p-3 rounded-lg bg-gray-900/40 border border-gray-800/40">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-400">Request Quote</span>
+                                    <span className="text-xs text-gray-500">Test RFQ Integration</span>
                                 </div>
-                            )}
-                        </div>
+
+                                {rfq.routerOnline ? (
+                                    <button
+                                        onClick={() => rfq.requestQuote({
+                                            underlying: vaultMeta.symbol,
+                                            spotPrice: underlyingPrice || 100,
+                                            strikeOffsetPct: vaultMeta.strikeOffset,
+                                            notionalAmount: 1000 * 1e6, // $1000 notional
+                                            epochDurationHours: 168, // 7 days
+                                        })}
+                                        disabled={rfq.rfqLoading || rfq.rfqStatus === 'OPEN'}
+                                        className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                                        style={{
+                                            backgroundColor: rfq.rfqLoading || rfq.rfqStatus === 'OPEN' ? '#374151' : theme.accentSoft,
+                                            color: theme.accent,
+                                            borderWidth: '1px',
+                                            borderColor: theme.accentBorder,
+                                        }}
+                                    >
+                                        {rfq.rfqLoading ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Requesting...
+                                            </span>
+                                        ) : rfq.rfqStatus === 'OPEN' ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <Radio className="w-4 h-4 animate-pulse" />
+                                                Collecting {rfq.quoteCount} quotes...
+                                            </span>
+                                        ) : (
+                                            'Request Quote from Market Makers'
+                                        )}
+                                    </button>
+                                ) : (
+                                    <p className="text-xs text-gray-500 text-center py-2">
+                                        RFQ Router offline - Start with: <code className="bg-gray-800 px-1 rounded">npm run dev</code> in rfq-router
+                                    </p>
+                                )}
+
+                                {/* Quote Result */}
+                                {rfq.bestPremium && rfq.rfqStatus === 'FILLED' && (
+                                    <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-green-400">Best Quote Accepted</span>
+                                            <span className="text-green-400 font-semibold">
+                                                +${(rfq.bestPremium / 1e6).toFixed(4)}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            From: {rfq.bestMaker?.slice(0, 8)}...
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Payoff Chart */}

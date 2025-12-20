@@ -1,6 +1,4 @@
 {
-  "/page": "app/page.js",
-  "/v2/oracle/page": "app/v2/oracle/page.js",
-  "/v2/page": "app/v2/page.js",
-  "/v2/portfolio/page": "app/v2/portfolio/page.js"
+  "/v2/earn/[ticker]/page": "app/v2/earn/[ticker]/page.js",
+  "/v2/oracle/page": "app/v2/oracle/page.js"
 }

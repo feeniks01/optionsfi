@@ -92,14 +92,27 @@ export class OnChainClient {
         );
 
         try {
-            // Load IDL from file
-            const idlPath = path.resolve(__dirname, "../../target/idl/vault.json");
-            if (fs.existsSync(idlPath)) {
+            // Load IDL from file - try multiple locations
+            const possiblePaths = [
+                path.resolve(__dirname, "../../../target/idl/vault.json"),  // From keeper/src to project root
+                path.resolve(__dirname, "../../target/idl/vault.json"),
+                path.resolve(__dirname, "../idl/vault.json"),
+            ];
+
+            let idlPath: string | null = null;
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    idlPath = p;
+                    break;
+                }
+            }
+
+            if (idlPath) {
                 const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
                 this.program = new anchor.Program(idl, provider);
-                console.log("Loaded vault IDL, program ID:", VAULT_PROGRAM_ID.toBase58());
+                console.log("Loaded vault IDL from:", idlPath);
             } else {
-                console.warn("Vault IDL not found at", idlPath);
+                console.warn("Vault IDL not found in any expected location");
             }
         } catch (error) {
             console.error("Failed to load IDL:", error);

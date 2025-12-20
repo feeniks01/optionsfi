@@ -127,6 +127,95 @@
       ]
     },
     {
+      "name": "create_share_metadata",
+      "docs": [
+        "Create metadata for the share token (vNVDAx, etc.)",
+        "Only callable by vault authority since vault PDA is the mint authority"
+      ],
+      "discriminator": [
+        176,
+        243,
+        233,
+        202,
+        218,
+        168,
+        53,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "share_mint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "metadata",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "token_metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "deposit",
       "docs": [
         "Deposit underlying tokens and receive vault shares"

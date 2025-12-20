@@ -46,7 +46,7 @@ const config = {
 // Pyth Hermes API for real-time prices
 const HERMES_URL = "https://hermes.pyth.network";
 const PYTH_FEED_IDS: Record<string, string> = {
-    NVDAx: "0x7c3bc7d2829a3c87cbc1b1dc05abeadafaa5a8ce970ee7b2d5baa0f079ce0a10", // NVDA/USD
+    NVDAx: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f", // NVDA/USD from Pyth
 };
 
 // ============================================================================

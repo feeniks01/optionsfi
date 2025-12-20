@@ -7,7 +7,7 @@ module.exports = mod;
 }),
 "[project]/app/anchor/vault_idl.json (json)", ((__turbopack_context__) => {
 
-__turbopack_context__.v({"address":"A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94","metadata":{"name":"vault","version":"0.1.0","spec":"0.1.0","description":"OptionsFi V2 - Covered Call Vault"},"instructions":[{"name":"advance_epoch","docs":["Advance epoch (called by keeper after settlement)","Premium earned is credited to total_assets, increasing share value"],"discriminator":[93,138,234,218,241,230,132,38],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"authority","signer":true,"relations":["vault"]}],"args":[{"name":"premium_earned","type":"u64"}]},{"name":"collect_premium","docs":["Collect premium from market maker (called during epoch roll)","Transfers USDC from payer to vault's premium account"],"discriminator":[166,199,123,128,71,141,223,204],"accounts":[{"name":"vault","pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"vault_premium_account","writable":true},{"name":"payer_token_account","writable":true},{"name":"payer","writable":true,"signer":true},{"name":"token_program","address":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"}],"args":[{"name":"amount","type":"u64"}]},{"name":"deposit","docs":["Deposit underlying tokens and receive vault shares"],"discriminator":[242,35,198,137,82,225,242,182],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"share_mint","writable":true},{"name":"vault_token_account","writable":true},{"name":"user_token_account","writable":true},{"name":"user_share_account","writable":true},{"name":"user","writable":true,"signer":true},{"name":"token_program","address":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"}],"args":[{"name":"amount","type":"u64"}]},{"name":"initialize_vault","docs":["Initialize a new vault for a specific xStock asset"],"discriminator":[48,191,163,44,71,129,63,164],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"arg","path":"asset_id"}]}},{"name":"underlying_mint"},{"name":"premium_mint"},{"name":"share_mint","writable":true,"signer":true},{"name":"vault_token_account","writable":true,"signer":true},{"name":"premium_token_account","writable":true,"signer":true},{"name":"authority","writable":true,"signer":true},{"name":"system_program","address":"11111111111111111111111111111111"},{"name":"token_program","address":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},{"name":"rent","address":"SysvarRent111111111111111111111111111111111"}],"args":[{"name":"asset_id","type":"string"},{"name":"utilization_cap_bps","type":"u16"}]},{"name":"pay_settlement","docs":["Pay out to market maker for ITM settlement","Only callable by vault authority"],"discriminator":[65,54,44,166,205,55,164,205],"accounts":[{"name":"vault","pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"vault_premium_account","writable":true},{"name":"recipient_token_account","writable":true},{"name":"recipient"},{"name":"authority","signer":true,"relations":["vault"]},{"name":"token_program","address":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"}],"args":[{"name":"amount","type":"u64"}]},{"name":"process_withdrawal","docs":["Process withdrawal after epoch settles"],"discriminator":[51,97,236,17,37,33,196,64],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]},"relations":["withdrawal_request"]},{"name":"withdrawal_request","writable":true},{"name":"share_mint","writable":true},{"name":"vault_token_account","writable":true},{"name":"user_token_account","writable":true},{"name":"user_share_account","writable":true},{"name":"user","writable":true,"signer":true,"relations":["withdrawal_request"]},{"name":"token_program","address":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"}],"args":[]},{"name":"record_notional_exposure","docs":["Record notional exposure when an RFQ is filled (fractional options)","Premium is in premium_mint tokens (USDC)"],"discriminator":[26,180,108,160,15,34,179,128],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"authority","signer":true,"relations":["vault"]}],"args":[{"name":"notional_tokens","type":"u64"},{"name":"premium","type":"u64"}]},{"name":"request_withdrawal","docs":["Request withdrawal (queued until epoch end)"],"discriminator":[251,85,121,205,56,201,12,177],"accounts":[{"name":"vault","writable":true,"pda":{"seeds":[{"kind":"const","value":[118,97,117,108,116]},{"kind":"account","path":"vault.asset_id","account":"Vault"}]}},{"name":"withdrawal_request","writable":true,"pda":{"seeds":[{"kind":"const","value":[119,105,116,104,100,114,97,119,97,108]},{"kind":"account","path":"vault"},{"kind":"account","path":"user"},{"kind":"account","path":"vault.epoch","account":"Vault"}]}},{"name":"user_share_account"},{"name":"user","writable":true,"signer":true},{"name":"system_program","address":"11111111111111111111111111111111"}],"args":[{"name":"shares","type":"u64"}]}],"accounts":[{"name":"Vault","discriminator":[211,8,232,43,2,152,117,119]},{"name":"WithdrawalRequest","discriminator":[242,88,147,173,182,62,229,193]}],"events":[{"name":"DepositEvent","discriminator":[120,248,61,83,31,142,107,144]},{"name":"EpochAdvancedEvent","discriminator":[26,197,195,116,126,48,210,42]},{"name":"NotionalExposureEvent","discriminator":[220,74,165,136,237,183,23,38]},{"name":"PremiumCollectedEvent","discriminator":[76,52,166,111,182,211,215,144]},{"name":"SettlementPaidEvent","discriminator":[97,3,234,177,141,83,59,26]},{"name":"WithdrawalProcessedEvent","discriminator":[23,252,30,4,24,110,166,133]},{"name":"WithdrawalRequestedEvent","discriminator":[82,227,155,140,223,124,77,243]}],"errors":[{"code":6000,"name":"ZeroAmount","msg":"Amount must be greater than zero"},{"code":6001,"name":"ZeroShares","msg":"Calculated shares must be greater than zero"},{"code":6002,"name":"InsufficientShares","msg":"Insufficient shares"},{"code":6003,"name":"AlreadyProcessed","msg":"Withdrawal already processed"},{"code":6004,"name":"EpochNotSettled","msg":"Epoch has not settled yet"},{"code":6005,"name":"Overflow","msg":"Arithmetic overflow"},{"code":6006,"name":"ExceedsUtilizationCap","msg":"Exceeds utilization cap"}],"types":[{"name":"DepositEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"user","type":"pubkey"},{"name":"amount","type":"u64"},{"name":"shares_minted","type":"u64"},{"name":"epoch","type":"u64"}]}},{"name":"EpochAdvancedEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"new_epoch","type":"u64"},{"name":"premium_earned","type":"u64"},{"name":"notional_exposed","type":"u64"},{"name":"avg_premium_bps","type":"u32"},{"name":"total_assets","type":"u64"},{"name":"total_shares","type":"u64"}]}},{"name":"NotionalExposureEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"epoch","type":"u64"},{"name":"notional_tokens","type":"u64"},{"name":"premium","type":"u64"},{"name":"total_notional_this_epoch","type":"u64"},{"name":"total_premium_this_epoch","type":"u64"},{"name":"avg_premium_bps","type":"u32"}]}},{"name":"PremiumCollectedEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"payer","type":"pubkey"},{"name":"amount","type":"u64"},{"name":"epoch","type":"u64"}]}},{"name":"SettlementPaidEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"recipient","type":"pubkey"},{"name":"amount","type":"u64"},{"name":"epoch","type":"u64"}]}},{"name":"Vault","type":{"kind":"struct","fields":[{"name":"authority","type":"pubkey"},{"name":"asset_id","type":"string"},{"name":"underlying_mint","type":"pubkey"},{"name":"share_mint","type":"pubkey"},{"name":"vault_token_account","type":"pubkey"},{"name":"premium_mint","type":"pubkey"},{"name":"premium_token_account","type":"pubkey"},{"name":"total_assets","type":"u64"},{"name":"total_shares","type":"u64"},{"name":"epoch","type":"u64"},{"name":"utilization_cap_bps","type":"u16"},{"name":"last_roll_timestamp","type":"i64"},{"name":"pending_withdrawals","type":"u64"},{"name":"epoch_notional_exposed","type":"u64"},{"name":"epoch_premium_earned","type":"u64"},{"name":"epoch_premium_per_token_bps","type":"u32"},{"name":"bump","type":"u8"}]}},{"name":"WithdrawalProcessedEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"user","type":"pubkey"},{"name":"shares","type":"u64"},{"name":"amount","type":"u64"},{"name":"epoch","type":"u64"}]}},{"name":"WithdrawalRequest","type":{"kind":"struct","fields":[{"name":"user","type":"pubkey"},{"name":"vault","type":"pubkey"},{"name":"shares","type":"u64"},{"name":"request_epoch","type":"u64"},{"name":"processed","type":"bool"}]}},{"name":"WithdrawalRequestedEvent","type":{"kind":"struct","fields":[{"name":"vault","type":"pubkey"},{"name":"user","type":"pubkey"},{"name":"shares","type":"u64"},{"name":"epoch","type":"u64"}]}}]});}),
+__turbopack_context__.v(JSON.parse("{\"address\":\"A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94\",\"metadata\":{\"name\":\"vault\",\"version\":\"0.1.0\",\"spec\":\"0.1.0\",\"description\":\"OptionsFi V2 - Covered Call Vault\"},\"instructions\":[{\"name\":\"advance_epoch\",\"docs\":[\"Advance epoch (called by keeper after settlement)\",\"Premium earned is credited to total_assets, increasing share value\"],\"discriminator\":[93,138,234,218,241,230,132,38],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"authority\",\"signer\":true,\"relations\":[\"vault\"]}],\"args\":[{\"name\":\"premium_earned\",\"type\":\"u64\"}]},{\"name\":\"collect_premium\",\"docs\":[\"Collect premium from market maker (called during epoch roll)\",\"Transfers USDC from payer to vault's premium account\"],\"discriminator\":[166,199,123,128,71,141,223,204],\"accounts\":[{\"name\":\"vault\",\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"vault_premium_account\",\"writable\":true},{\"name\":\"payer_token_account\",\"writable\":true},{\"name\":\"payer\",\"writable\":true,\"signer\":true},{\"name\":\"token_program\",\"address\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"}],\"args\":[{\"name\":\"amount\",\"type\":\"u64\"}]},{\"name\":\"create_share_metadata\",\"docs\":[\"Create metadata for the share token (vNVDAx, etc.)\",\"Only callable by vault authority since vault PDA is the mint authority\"],\"discriminator\":[176,243,233,202,218,168,53,158],\"accounts\":[{\"name\":\"vault\",\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"share_mint\",\"relations\":[\"vault\"]},{\"name\":\"metadata\",\"writable\":true},{\"name\":\"payer\",\"writable\":true,\"signer\":true},{\"name\":\"authority\",\"signer\":true,\"relations\":[\"vault\"]},{\"name\":\"system_program\",\"address\":\"11111111111111111111111111111111\"},{\"name\":\"rent\",\"address\":\"SysvarRent111111111111111111111111111111111\"},{\"name\":\"token_metadata_program\",\"address\":\"metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s\"}],\"args\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\"},{\"name\":\"uri\",\"type\":\"string\"}]},{\"name\":\"deposit\",\"docs\":[\"Deposit underlying tokens and receive vault shares\"],\"discriminator\":[242,35,198,137,82,225,242,182],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"share_mint\",\"writable\":true},{\"name\":\"vault_token_account\",\"writable\":true},{\"name\":\"user_token_account\",\"writable\":true},{\"name\":\"user_share_account\",\"writable\":true},{\"name\":\"user\",\"writable\":true,\"signer\":true},{\"name\":\"token_program\",\"address\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"}],\"args\":[{\"name\":\"amount\",\"type\":\"u64\"}]},{\"name\":\"initialize_vault\",\"docs\":[\"Initialize a new vault for a specific xStock asset\"],\"discriminator\":[48,191,163,44,71,129,63,164],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"arg\",\"path\":\"asset_id\"}]}},{\"name\":\"underlying_mint\"},{\"name\":\"premium_mint\"},{\"name\":\"share_mint\",\"writable\":true,\"signer\":true},{\"name\":\"vault_token_account\",\"writable\":true,\"signer\":true},{\"name\":\"premium_token_account\",\"writable\":true,\"signer\":true},{\"name\":\"authority\",\"writable\":true,\"signer\":true},{\"name\":\"system_program\",\"address\":\"11111111111111111111111111111111\"},{\"name\":\"token_program\",\"address\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"},{\"name\":\"rent\",\"address\":\"SysvarRent111111111111111111111111111111111\"}],\"args\":[{\"name\":\"asset_id\",\"type\":\"string\"},{\"name\":\"utilization_cap_bps\",\"type\":\"u16\"}]},{\"name\":\"pay_settlement\",\"docs\":[\"Pay out to market maker for ITM settlement\",\"Only callable by vault authority\"],\"discriminator\":[65,54,44,166,205,55,164,205],\"accounts\":[{\"name\":\"vault\",\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"vault_premium_account\",\"writable\":true},{\"name\":\"recipient_token_account\",\"writable\":true},{\"name\":\"recipient\"},{\"name\":\"authority\",\"signer\":true,\"relations\":[\"vault\"]},{\"name\":\"token_program\",\"address\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"}],\"args\":[{\"name\":\"amount\",\"type\":\"u64\"}]},{\"name\":\"process_withdrawal\",\"docs\":[\"Process withdrawal after epoch settles\"],\"discriminator\":[51,97,236,17,37,33,196,64],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]},\"relations\":[\"withdrawal_request\"]},{\"name\":\"withdrawal_request\",\"writable\":true},{\"name\":\"share_mint\",\"writable\":true},{\"name\":\"vault_token_account\",\"writable\":true},{\"name\":\"user_token_account\",\"writable\":true},{\"name\":\"user_share_account\",\"writable\":true},{\"name\":\"user\",\"writable\":true,\"signer\":true,\"relations\":[\"withdrawal_request\"]},{\"name\":\"token_program\",\"address\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"}],\"args\":[]},{\"name\":\"record_notional_exposure\",\"docs\":[\"Record notional exposure when an RFQ is filled (fractional options)\",\"Premium is in premium_mint tokens (USDC)\"],\"discriminator\":[26,180,108,160,15,34,179,128],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"authority\",\"signer\":true,\"relations\":[\"vault\"]}],\"args\":[{\"name\":\"notional_tokens\",\"type\":\"u64\"},{\"name\":\"premium\",\"type\":\"u64\"}]},{\"name\":\"request_withdrawal\",\"docs\":[\"Request withdrawal (queued until epoch end)\"],\"discriminator\":[251,85,121,205,56,201,12,177],\"accounts\":[{\"name\":\"vault\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[118,97,117,108,116]},{\"kind\":\"account\",\"path\":\"vault.asset_id\",\"account\":\"Vault\"}]}},{\"name\":\"withdrawal_request\",\"writable\":true,\"pda\":{\"seeds\":[{\"kind\":\"const\",\"value\":[119,105,116,104,100,114,97,119,97,108]},{\"kind\":\"account\",\"path\":\"vault\"},{\"kind\":\"account\",\"path\":\"user\"},{\"kind\":\"account\",\"path\":\"vault.epoch\",\"account\":\"Vault\"}]}},{\"name\":\"user_share_account\"},{\"name\":\"user\",\"writable\":true,\"signer\":true},{\"name\":\"system_program\",\"address\":\"11111111111111111111111111111111\"}],\"args\":[{\"name\":\"shares\",\"type\":\"u64\"}]}],\"accounts\":[{\"name\":\"Vault\",\"discriminator\":[211,8,232,43,2,152,117,119]},{\"name\":\"WithdrawalRequest\",\"discriminator\":[242,88,147,173,182,62,229,193]}],\"events\":[{\"name\":\"DepositEvent\",\"discriminator\":[120,248,61,83,31,142,107,144]},{\"name\":\"EpochAdvancedEvent\",\"discriminator\":[26,197,195,116,126,48,210,42]},{\"name\":\"NotionalExposureEvent\",\"discriminator\":[220,74,165,136,237,183,23,38]},{\"name\":\"PremiumCollectedEvent\",\"discriminator\":[76,52,166,111,182,211,215,144]},{\"name\":\"SettlementPaidEvent\",\"discriminator\":[97,3,234,177,141,83,59,26]},{\"name\":\"WithdrawalProcessedEvent\",\"discriminator\":[23,252,30,4,24,110,166,133]},{\"name\":\"WithdrawalRequestedEvent\",\"discriminator\":[82,227,155,140,223,124,77,243]}],\"errors\":[{\"code\":6000,\"name\":\"ZeroAmount\",\"msg\":\"Amount must be greater than zero\"},{\"code\":6001,\"name\":\"ZeroShares\",\"msg\":\"Calculated shares must be greater than zero\"},{\"code\":6002,\"name\":\"InsufficientShares\",\"msg\":\"Insufficient shares\"},{\"code\":6003,\"name\":\"AlreadyProcessed\",\"msg\":\"Withdrawal already processed\"},{\"code\":6004,\"name\":\"EpochNotSettled\",\"msg\":\"Epoch has not settled yet\"},{\"code\":6005,\"name\":\"Overflow\",\"msg\":\"Arithmetic overflow\"},{\"code\":6006,\"name\":\"ExceedsUtilizationCap\",\"msg\":\"Exceeds utilization cap\"}],\"types\":[{\"name\":\"DepositEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"user\",\"type\":\"pubkey\"},{\"name\":\"amount\",\"type\":\"u64\"},{\"name\":\"shares_minted\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"}]}},{\"name\":\"EpochAdvancedEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"new_epoch\",\"type\":\"u64\"},{\"name\":\"premium_earned\",\"type\":\"u64\"},{\"name\":\"notional_exposed\",\"type\":\"u64\"},{\"name\":\"avg_premium_bps\",\"type\":\"u32\"},{\"name\":\"total_assets\",\"type\":\"u64\"},{\"name\":\"total_shares\",\"type\":\"u64\"}]}},{\"name\":\"NotionalExposureEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"epoch\",\"type\":\"u64\"},{\"name\":\"notional_tokens\",\"type\":\"u64\"},{\"name\":\"premium\",\"type\":\"u64\"},{\"name\":\"total_notional_this_epoch\",\"type\":\"u64\"},{\"name\":\"total_premium_this_epoch\",\"type\":\"u64\"},{\"name\":\"avg_premium_bps\",\"type\":\"u32\"}]}},{\"name\":\"PremiumCollectedEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"payer\",\"type\":\"pubkey\"},{\"name\":\"amount\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"}]}},{\"name\":\"SettlementPaidEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"recipient\",\"type\":\"pubkey\"},{\"name\":\"amount\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"}]}},{\"name\":\"Vault\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"authority\",\"type\":\"pubkey\"},{\"name\":\"asset_id\",\"type\":\"string\"},{\"name\":\"underlying_mint\",\"type\":\"pubkey\"},{\"name\":\"share_mint\",\"type\":\"pubkey\"},{\"name\":\"vault_token_account\",\"type\":\"pubkey\"},{\"name\":\"premium_mint\",\"type\":\"pubkey\"},{\"name\":\"premium_token_account\",\"type\":\"pubkey\"},{\"name\":\"total_assets\",\"type\":\"u64\"},{\"name\":\"total_shares\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"},{\"name\":\"utilization_cap_bps\",\"type\":\"u16\"},{\"name\":\"last_roll_timestamp\",\"type\":\"i64\"},{\"name\":\"pending_withdrawals\",\"type\":\"u64\"},{\"name\":\"epoch_notional_exposed\",\"type\":\"u64\"},{\"name\":\"epoch_premium_earned\",\"type\":\"u64\"},{\"name\":\"epoch_premium_per_token_bps\",\"type\":\"u32\"},{\"name\":\"bump\",\"type\":\"u8\"}]}},{\"name\":\"WithdrawalProcessedEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"user\",\"type\":\"pubkey\"},{\"name\":\"shares\",\"type\":\"u64\"},{\"name\":\"amount\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"}]}},{\"name\":\"WithdrawalRequest\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"user\",\"type\":\"pubkey\"},{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"shares\",\"type\":\"u64\"},{\"name\":\"request_epoch\",\"type\":\"u64\"},{\"name\":\"processed\",\"type\":\"bool\"}]}},{\"name\":\"WithdrawalRequestedEvent\",\"type\":{\"kind\":\"struct\",\"fields\":[{\"name\":\"vault\",\"type\":\"pubkey\"},{\"name\":\"user\",\"type\":\"pubkey\"},{\"name\":\"shares\",\"type\":\"u64\"},{\"name\":\"epoch\",\"type\":\"u64\"}]}}]}"));}),
 "[project]/app/lib/vault-sdk.ts [app-ssr] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
@@ -63,33 +63,13 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$anchor$2f$vault_idl$2
 const VAULT_PROGRAM_ID = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"]("A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94");
 const ORACLE_PROGRAM_ID = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"]("5MnuN6ahpRSp5F3R2uXvy9pSN4TQmhSydywQSoxszuZk");
 const RFQ_PROGRAM_ID = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"]("3M2K6htNbWyZHtvvUyUME19f5GUS6x8AtGmitFENDT5Z");
-// Using devnet USDC as placeholder
-const DEVNET_USDC = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"]("5z8s3k7mkmH1DKFPvjkVd8PxapEeYaPJjqQTJeUEN1i4");
+// NVDAx token mint (the actual token users deposit)
+const NVDAX_MINT = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"]("G5VWnnWRxVvuTqRCEQNNGEdRmS42hMTyh8DAN9MHecLn");
 const VAULTS = {
     nvdax: {
         symbol: "NVDAx",
         assetId: "NVDAx",
-        underlyingMint: DEVNET_USDC
-    },
-    tslax: {
-        symbol: "TSLAx",
-        assetId: "TSLAx",
-        underlyingMint: DEVNET_USDC
-    },
-    spyx: {
-        symbol: "SPYx",
-        assetId: "SPYx",
-        underlyingMint: DEVNET_USDC
-    },
-    aaplx: {
-        symbol: "AAPLx",
-        assetId: "AAPLx",
-        underlyingMint: DEVNET_USDC
-    },
-    metax: {
-        symbol: "METAx",
-        assetId: "METAx",
-        underlyingMint: DEVNET_USDC
+        underlyingMint: NVDAX_MINT
     }
 };
 function deriveVaultPda(assetId) {
@@ -110,11 +90,15 @@ function deriveVaultTokenAccountPda(vaultPda) {
         vaultPda.toBuffer()
     ], VAULT_PROGRAM_ID);
 }
-function deriveWithdrawalPda(vaultPda, userPubkey) {
+function deriveWithdrawalPda(vaultPda, userPubkey, epoch) {
+    // Use BN for browser compatibility (writeBigUInt64LE doesn't work in browser)
+    const epochBN = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f$bn$2e$js$2f$lib$2f$bn$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BN$3e$__["BN"](epoch.toString());
+    const epochBuffer = epochBN.toArrayLike(Buffer, "le", 8);
     return __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"].findProgramAddressSync([
         Buffer.from("withdrawal"),
         vaultPda.toBuffer(),
-        userPubkey.toBuffer()
+        userPubkey.toBuffer(),
+        epochBuffer
     ], VAULT_PROGRAM_ID);
 }
 function getVaultProgram(provider) {
@@ -193,29 +177,26 @@ async function buildDepositTransaction(connection, wallet, assetId, amount// in 
     const config = Object.values(VAULTS).find((v)=>v.assetId === assetId);
     if (!config) throw new Error(`Unknown vault: ${assetId}`);
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [vaultTokenAccountPda] = deriveVaultTokenAccountPda(vaultPda);
+    // Fetch the vault account to get the ACTUAL share mint and vault token account
+    // (These were created as Keypairs during init, not PDAs)
+    const vaultAccount = await program.account.vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint;
+    const vaultTokenAccount = vaultAccount.vaultTokenAccount;
     // Get user's token account for the underlying asset
     const userTokenAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(config.underlyingMint, wallet.publicKey);
     // Get user's share token account (create if needed)
-    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMintPda, wallet.publicKey);
+    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMint, wallet.publicKey);
     const tx = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Transaction"]();
-    // Check if user share account exists, create if not
-    try {
-        await connection.getAccountInfo(userShareAccount);
-    } catch  {
-        tx.add((0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$instructions$2f$associatedTokenAccount$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createAssociatedTokenAccountInstruction"])(wallet.publicKey, userShareAccount, wallet.publicKey, shareMintPda));
-    }
     // Check if account exists and has no data (doesn't exist yet)
     const shareAccountInfo = await connection.getAccountInfo(userShareAccount);
     if (!shareAccountInfo) {
-        tx.add((0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$instructions$2f$associatedTokenAccount$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createAssociatedTokenAccountInstruction"])(wallet.publicKey, userShareAccount, wallet.publicKey, shareMintPda));
+        tx.add((0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$instructions$2f$associatedTokenAccount$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createAssociatedTokenAccountInstruction"])(wallet.publicKey, userShareAccount, wallet.publicKey, shareMint));
     }
     // Build deposit instruction
     const depositIx = await program.methods.deposit(new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f$bn$2e$js$2f$lib$2f$bn$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BN$3e$__["BN"](amount)).accounts({
         vault: vaultPda,
-        shareMint: shareMintPda,
-        vaultTokenAccount: vaultTokenAccountPda,
+        shareMint: shareMint,
+        vaultTokenAccount: vaultTokenAccount,
         userTokenAccount: userTokenAccount,
         userShareAccount: userShareAccount,
         user: wallet.publicKey,
@@ -231,9 +212,13 @@ async function buildRequestWithdrawalTransaction(connection, wallet, assetId, sh
     });
     const program = getVaultProgram(provider);
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
-    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMintPda, wallet.publicKey);
+    // Fetch vault to get actual share mint and current epoch
+    const vaultAccount = await program.account.vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint;
+    const epoch = Number(vaultAccount.epoch);
+    // Derive withdrawal PDA with epoch
+    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, epoch);
+    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMint, wallet.publicKey);
     const tx = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Transaction"]();
     const requestWithdrawalIx = await program.methods.requestWithdrawal(new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f$bn$2e$js$2f$lib$2f$bn$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BN$3e$__["BN"](shares)).accounts({
         vault: vaultPda,
@@ -253,17 +238,23 @@ async function buildProcessWithdrawalTransaction(connection, wallet, assetId) {
     const config = Object.values(VAULTS).find((v)=>v.assetId === assetId);
     if (!config) throw new Error(`Unknown vault: ${assetId}`);
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [vaultTokenAccountPda] = deriveVaultTokenAccountPda(vaultPda);
-    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
+    // Fetch vault to get actual account addresses
+    const vaultAccount = await program.account.vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint;
+    const vaultTokenAccount = vaultAccount.vaultTokenAccount;
+    // The withdrawal was requested in a previous epoch
+    // We need to find it - typically the previous epoch
+    const currentEpoch = Number(vaultAccount.epoch);
+    const requestEpoch = currentEpoch > 0 ? currentEpoch - 1 : 0;
+    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, requestEpoch);
     const userTokenAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(config.underlyingMint, wallet.publicKey);
-    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMintPda, wallet.publicKey);
+    const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMint, wallet.publicKey);
     const tx = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Transaction"]();
     const processWithdrawalIx = await program.methods.processWithdrawal().accounts({
         vault: vaultPda,
         withdrawalRequest: withdrawalPda,
-        shareMint: shareMintPda,
-        vaultTokenAccount: vaultTokenAccountPda,
+        shareMint: shareMint,
+        vaultTokenAccount: vaultTokenAccount,
         userTokenAccount: userTokenAccount,
         userShareAccount: userShareAccount,
         user: wallet.publicKey,
@@ -275,8 +266,24 @@ async function buildProcessWithdrawalTransaction(connection, wallet, assetId) {
 async function getUserShareBalance(connection, userPubkey, assetId) {
     try {
         const [vaultPda] = deriveVaultPda(assetId);
-        const [shareMintPda] = deriveShareMintPda(vaultPda);
-        const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMintPda, userPubkey);
+        // Create a dummy wallet for read-only operations
+        const dummyWallet = {
+            publicKey: __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$web3$2e$js$2f$lib$2f$index$2e$esm$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PublicKey"].default,
+            signTransaction: async ()=>{
+                throw new Error("Not implemented");
+            },
+            signAllTransactions: async ()=>{
+                throw new Error("Not implemented");
+            }
+        };
+        const provider = new __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$coral$2d$xyz$2f$anchor$2f$dist$2f$esm$2f$provider$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AnchorProvider"](connection, dummyWallet, {
+            commitment: "confirmed"
+        });
+        const program = getVaultProgram(provider);
+        // Fetch vault to get actual share mint
+        const vaultAccount = await program.account.vault.fetch(vaultPda);
+        const shareMint = vaultAccount.shareMint;
+        const userShareAccount = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$app$2f$node_modules$2f40$solana$2f$spl$2d$token$2f$lib$2f$esm$2f$state$2f$mint$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getAssociatedTokenAddress"])(shareMint, userPubkey);
         const accountInfo = await connection.getTokenAccountBalance(userShareAccount);
         return Number(accountInfo.value.amount);
     } catch  {
@@ -301,13 +308,25 @@ async function getUserWithdrawalRequest(connection, wallet, assetId) {
         });
         const program = getVaultProgram(provider);
         const [vaultPda] = deriveVaultPda(assetId);
-        const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
-        const withdrawalAccount = await program.account.withdrawalRequest.fetch(withdrawalPda);
-        return {
-            shares: Number(withdrawalAccount.shares),
-            requestEpoch: Number(withdrawalAccount.requestEpoch),
-            processed: withdrawalAccount.processed
-        };
+        // Fetch vault to get current epoch
+        const vaultAccount = await program.account.vault.fetch(vaultPda);
+        const currentEpoch = Number(vaultAccount.epoch);
+        // Try to find withdrawal request from previous epochs
+        // Start from previous epoch and go back a few epochs
+        for(let epoch = currentEpoch - 1; epoch >= Math.max(0, currentEpoch - 5); epoch--){
+            try {
+                const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, epoch);
+                const withdrawalAccount = await program.account.withdrawalRequest.fetch(withdrawalPda);
+                return {
+                    shares: Number(withdrawalAccount.shares),
+                    requestEpoch: Number(withdrawalAccount.requestEpoch),
+                    processed: withdrawalAccount.processed
+                };
+            } catch  {
+                continue;
+            }
+        }
+        return null;
     } catch  {
         return null;
     }

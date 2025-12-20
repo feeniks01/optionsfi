@@ -38,7 +38,7 @@ function SidebarDemoPanel({ collapsed = false }) {
                 signal: AbortSignal.timeout(3000)
             });
             const data = await response.json();
-            setKeeperOnline(data.status === "ok");
+            setKeeperOnline(data.status === "healthy");
         } catch  {
             setKeeperOnline(false);
         }

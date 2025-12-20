@@ -86,11 +86,14 @@ export function deriveVaultTokenAccountPda(vaultPda: PublicKey): [PublicKey, num
 }
 
 /**
- * Derive withdrawal request PDA
+ * Derive withdrawal request PDA (includes epoch in seeds)
  */
-export function deriveWithdrawalPda(vaultPda: PublicKey, userPubkey: PublicKey): [PublicKey, number] {
+export function deriveWithdrawalPda(vaultPda: PublicKey, userPubkey: PublicKey, epoch: number | bigint): [PublicKey, number] {
+    // Use BN for browser compatibility (writeBigUInt64LE doesn't work in browser)
+    const epochBN = new BN(epoch.toString());
+    const epochBuffer = epochBN.toArrayLike(Buffer, "le", 8);
     return PublicKey.findProgramAddressSync(
-        [Buffer.from("withdrawal"), vaultPda.toBuffer(), userPubkey.toBuffer()],
+        [Buffer.from("withdrawal"), vaultPda.toBuffer(), userPubkey.toBuffer(), epochBuffer],
         VAULT_PROGRAM_ID
     );
 }
@@ -137,10 +140,14 @@ export async function fetchVaultData(
             const sharePrice = totalShares > 0 ? totalAssets / totalShares : 1.0;
 
             // Calculate APY from epoch premium (annualized)
-            // epochPremiumPerTokenBps = premium earned per token in basis points
-            // Annualize: assume 52 epochs per year (weekly)
-            const epochPremiumBps = Number(vaultAccount.epochPremiumPerTokenBps || 0);
-            const apy = (epochPremiumBps / 100) * 52; // Convert bps to % and annualize
+            // Real APY = (premium_earned / total_assets) × 52 weeks × 100
+            // This gives the actual yield on the entire vault, not just exposed tokens
+            const epochPremiumEarned = Number(vaultAccount.epochPremiumEarned || 0);
+            const epochYieldPercent = totalAssets > 0
+                ? (epochPremiumEarned / totalAssets) * 100
+                : 0;
+            // Annualize assuming weekly epochs
+            const apy = epochYieldPercent * 52;
             const tvl = totalAssets / 1e6; // Assuming 6 decimals
 
             return {
@@ -196,8 +203,12 @@ export async function buildDepositTransaction(
     if (!config) throw new Error(`Unknown vault: ${assetId}`);
 
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [vaultTokenAccountPda] = deriveVaultTokenAccountPda(vaultPda);
+
+    // Fetch the vault account to get the ACTUAL share mint and vault token account
+    // (These were created as Keypairs during init, not PDAs)
+    const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint as PublicKey;
+    const vaultTokenAccount = vaultAccount.vaultTokenAccount as PublicKey;
 
     // Get user's token account for the underlying asset
     const userTokenAccount = await getAssociatedTokenAddress(
@@ -207,25 +218,11 @@ export async function buildDepositTransaction(
 
     // Get user's share token account (create if needed)
     const userShareAccount = await getAssociatedTokenAddress(
-        shareMintPda,
+        shareMint,
         wallet.publicKey
     );
 
     const tx = new Transaction();
-
-    // Check if user share account exists, create if not
-    try {
-        await connection.getAccountInfo(userShareAccount);
-    } catch {
-        tx.add(
-            createAssociatedTokenAccountInstruction(
-                wallet.publicKey,
-                userShareAccount,
-                wallet.publicKey,
-                shareMintPda
-            )
-        );
-    }
 
     // Check if account exists and has no data (doesn't exist yet)
     const shareAccountInfo = await connection.getAccountInfo(userShareAccount);
@@ -235,7 +232,7 @@ export async function buildDepositTransaction(
                 wallet.publicKey,
                 userShareAccount,
                 wallet.publicKey,
-                shareMintPda
+                shareMint
             )
         );
     }
@@ -245,8 +242,8 @@ export async function buildDepositTransaction(
         .deposit(new BN(amount))
         .accounts({
             vault: vaultPda,
-            shareMint: shareMintPda,
-            vaultTokenAccount: vaultTokenAccountPda,
+            shareMint: shareMint,
+            vaultTokenAccount: vaultTokenAccount,
             userTokenAccount: userTokenAccount,
             userShareAccount: userShareAccount,
             user: wallet.publicKey,
@@ -272,11 +269,17 @@ export async function buildRequestWithdrawalTransaction(
     const program = getVaultProgram(provider);
 
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
+
+    // Fetch vault to get actual share mint and current epoch
+    const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint as PublicKey;
+    const epoch = Number(vaultAccount.epoch);
+
+    // Derive withdrawal PDA with epoch
+    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, epoch);
 
     const userShareAccount = await getAssociatedTokenAddress(
-        shareMintPda,
+        shareMint,
         wallet.publicKey
     );
 
@@ -313,9 +316,17 @@ export async function buildProcessWithdrawalTransaction(
     if (!config) throw new Error(`Unknown vault: ${assetId}`);
 
     const [vaultPda] = deriveVaultPda(assetId);
-    const [shareMintPda] = deriveShareMintPda(vaultPda);
-    const [vaultTokenAccountPda] = deriveVaultTokenAccountPda(vaultPda);
-    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
+
+    // Fetch vault to get actual account addresses
+    const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+    const shareMint = vaultAccount.shareMint as PublicKey;
+    const vaultTokenAccount = vaultAccount.vaultTokenAccount as PublicKey;
+
+    // The withdrawal was requested in a previous epoch
+    // We need to find it - typically the previous epoch
+    const currentEpoch = Number(vaultAccount.epoch);
+    const requestEpoch = currentEpoch > 0 ? currentEpoch - 1 : 0;
+    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, requestEpoch);
 
     const userTokenAccount = await getAssociatedTokenAddress(
         config.underlyingMint,
@@ -323,7 +334,7 @@ export async function buildProcessWithdrawalTransaction(
     );
 
     const userShareAccount = await getAssociatedTokenAddress(
-        shareMintPda,
+        shareMint,
         wallet.publicKey
     );
 
@@ -334,8 +345,8 @@ export async function buildProcessWithdrawalTransaction(
         .accounts({
             vault: vaultPda,
             withdrawalRequest: withdrawalPda,
-            shareMint: shareMintPda,
-            vaultTokenAccount: vaultTokenAccountPda,
+            shareMint: shareMint,
+            vaultTokenAccount: vaultTokenAccount,
             userTokenAccount: userTokenAccount,
             userShareAccount: userShareAccount,
             user: wallet.publicKey,
@@ -358,10 +369,23 @@ export async function getUserShareBalance(
 ): Promise<number> {
     try {
         const [vaultPda] = deriveVaultPda(assetId);
-        const [shareMintPda] = deriveShareMintPda(vaultPda);
+
+        // Create a dummy wallet for read-only operations
+        const dummyWallet = {
+            publicKey: PublicKey.default,
+            signTransaction: async () => { throw new Error("Not implemented"); },
+            signAllTransactions: async () => { throw new Error("Not implemented"); },
+        } as unknown as Wallet;
+
+        const provider = new AnchorProvider(connection, dummyWallet, { commitment: "confirmed" });
+        const program = getVaultProgram(provider);
+
+        // Fetch vault to get actual share mint
+        const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+        const shareMint = vaultAccount.shareMint as PublicKey;
 
         const userShareAccount = await getAssociatedTokenAddress(
-            shareMintPda,
+            shareMint,
             userPubkey
         );
 
@@ -409,15 +433,30 @@ export async function getUserWithdrawalRequest(
         const program = getVaultProgram(provider);
 
         const [vaultPda] = deriveVaultPda(assetId);
-        const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey);
 
-        const withdrawalAccount = await program.account.withdrawalRequest.fetch(withdrawalPda);
+        // Fetch vault to get current epoch
+        const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+        const currentEpoch = Number(vaultAccount.epoch);
 
-        return {
-            shares: Number(withdrawalAccount.shares),
-            requestEpoch: Number(withdrawalAccount.requestEpoch),
-            processed: withdrawalAccount.processed,
-        };
+        // Try to find withdrawal request from previous epochs
+        // Start from previous epoch and go back a few epochs
+        for (let epoch = currentEpoch - 1; epoch >= Math.max(0, currentEpoch - 5); epoch--) {
+            try {
+                const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, epoch);
+                const withdrawalAccount = await (program.account as any).withdrawalRequest.fetch(withdrawalPda);
+
+                return {
+                    shares: Number(withdrawalAccount.shares),
+                    requestEpoch: Number(withdrawalAccount.requestEpoch),
+                    processed: withdrawalAccount.processed,
+                };
+            } catch {
+                // Try next epoch
+                continue;
+            }
+        }
+
+        return null;
     } catch {
         return null;
     }

@@ -123,7 +123,7 @@ export async function fillRfq(rfqId: string): Promise<{ success: boolean; filled
  */
 export async function checkRouterHealth(): Promise<boolean> {
     try {
-        const response = await fetch(`${RFQ_ROUTER_URL}/rfqs`, {
+        const response = await fetch(`${RFQ_ROUTER_URL}/health`, {
             method: "GET",
             signal: AbortSignal.timeout(3000),
         });

@@ -380,6 +380,70 @@ pub mod vault {
 
         Ok(())
     }
+
+    /// Create metadata for the share token (vNVDAx, etc.)
+    /// Only callable by vault authority since vault PDA is the mint authority
+    pub fn create_share_metadata(
+        ctx: Context<CreateShareMetadata>,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        let vault = &ctx.accounts.vault;
+        let asset_id = vault.asset_id.as_bytes();
+        let seeds = &[
+            b"vault",
+            asset_id,
+            &[vault.bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Build the CreateMetadataAccountV3 instruction
+        let create_metadata_ix = mpl_token_metadata::instructions::CreateMetadataAccountV3 {
+            metadata: ctx.accounts.metadata.key(),
+            mint: ctx.accounts.share_mint.key(),
+            mint_authority: vault.key(),
+            payer: ctx.accounts.payer.key(),
+            update_authority: (vault.key(), true),
+            system_program: ctx.accounts.system_program.key(),
+            rent: Some(ctx.accounts.rent.key()),
+        };
+
+        let data_v2 = mpl_token_metadata::types::DataV2 {
+            name,
+            symbol,
+            uri,
+            seller_fee_basis_points: 0,
+            creators: None,
+            collection: None,
+            uses: None,
+        };
+
+        let ix = create_metadata_ix.instruction(
+            mpl_token_metadata::instructions::CreateMetadataAccountV3InstructionArgs {
+                data: data_v2,
+                is_mutable: true,
+                collection_details: None,
+            }
+        );
+
+        anchor_lang::solana_program::program::invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.metadata.to_account_info(),
+                ctx.accounts.share_mint.to_account_info(),
+                vault.to_account_info(),
+                ctx.accounts.payer.to_account_info(),
+                vault.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.rent.to_account_info(),
+            ],
+            signer_seeds,
+        )?;
+
+        msg!("Created metadata for share token: {}", ctx.accounts.share_mint.key());
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -663,6 +727,37 @@ pub struct PaySettlement<'info> {
     pub authority: Signer<'info>,
 
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct CreateShareMetadata<'info> {
+    #[account(
+        seeds = [b"vault", vault.asset_id.as_bytes()],
+        bump = vault.bump,
+        has_one = authority,
+        has_one = share_mint
+    )]
+    pub vault: Account<'info, Vault>,
+
+    /// CHECK: The share mint owned by vault program
+    pub share_mint: AccountInfo<'info>,
+
+    /// CHECK: Metadata account to be created (validated by Metaplex)
+    #[account(mut)]
+    pub metadata: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+
+    pub rent: Sysvar<'info, Rent>,
+
+    /// CHECK: Token Metadata Program
+    #[account(address = METADATA_PROGRAM_ID)]
+    pub token_metadata_program: AccountInfo<'info>,
 }
 
 // ============================================================================
