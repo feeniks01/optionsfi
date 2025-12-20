@@ -1,6 +1,6 @@
 # OptionsFi
 
-Automated covered call yield vaults for tokenized equities on Solana.
+Settlement and pricing layer where products like vaults source real option premiums from professional market makers via RFQs, with deterministic on-chain execution.
 
 # Video
 
