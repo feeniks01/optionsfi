@@ -317,9 +317,15 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         // Step 5: Calculate Black-Scholes premium
         logger.info("Step 5: Calculating Black-Scholes premium...");
         let durationSeconds = Number(vaultData.minEpochDuration);
-        if (durationSeconds === 0 && assetId.toLowerCase().includes("demo")) {
-            logger.warn("Duration is 0, using fallback 180s for Demo vault");
-            durationSeconds = 180;
+        if (durationSeconds === 0) {
+            // Client-side fallback for 0-duration configs
+            if (assetId.toLowerCase().includes("demo")) {
+                logger.warn("Duration is 0, using fallback 180s for Demo vault");
+                durationSeconds = 180;
+            } else {
+                logger.warn("Duration is 0, using fallback 7 days for Production vault");
+                durationSeconds = 7 * 24 * 60 * 60;
+            }
         }
 
         const daysToExpiry = durationSeconds / (24 * 60 * 60);
@@ -476,39 +482,46 @@ async function runEpochRoll(targetAssetId?: string): Promise<boolean> {
 }
 
 /**
- * High-frequency check for automated demo rolls
+ * Lifecycle check loop - handles Settlement and Rolling for ALL vaults
+ * Respects minEpochDuration to avoid premature rolls.
  */
-async function checkAutomatedRolls(): Promise<void> {
+async function checkVaultLifecycle(): Promise<void> {
     if (state.isRunning) return;
 
     for (const assetId of config.assetIds) {
-        // Only automate demo vaults for now
-        if (!assetId.toLowerCase().includes("demo")) continue;
-
         try {
             const vault = await state.onchainClient?.fetchVault(assetId);
             if (!vault) continue;
 
             const now = Math.floor(Date.now() / 1000);
             const lastRoll = Number(vault.lastRollTimestamp);
+
+            // Handle zero-duration config fallback
             let minDuration = Number(vault.minEpochDuration);
-            if (minDuration === 0) minDuration = 180; // Fallback for demo
+            if (minDuration === 0) {
+                minDuration = assetId.toLowerCase().includes("demo") ? 180 : 7 * 24 * 60 * 60;
+            }
+
             const isLive = vault.epochNotionalExposed > BigInt(0);
 
-            // If time since last roll exceeded duration + small buffer
+            // Check if epoch has expired (add small 10s buffer)
             if (now > lastRoll + minDuration + 10) {
                 if (isLive) {
-                    // Settlement phase
-                    logger.info(`Automated settlement triggered for ${assetId}`);
+                    // Settlement phase (Vault has expired exposure -> needs to settle)
+                    logger.info(`Lifecycle: Settlement triggered for ${assetId}`);
                     await runSettlement(assetId);
                 } else {
-                    // Roll phase
-                    logger.info(`Automated roll triggered for ${assetId}`);
+                    // Roll phase (Vault is settled -> needs new exposure)
+                    // Note: This auto-rolls immediately after settlement. 
+                    // If you want to wait for specific windows (e.g. Friday), add logic here.
+                    logger.info(`Lifecycle: Roll triggered for ${assetId}`);
                     await runEpochRoll(assetId);
                 }
+            } else {
+                // Vault is active and not expired - do nothing
             }
         } catch (error: any) {
-            logger.error(`Automated check failed for ${assetId}`, { error: error.message });
+            logger.error(`Lifecycle check failed for ${assetId}`, { error: error.message });
         }
     }
 }
@@ -747,8 +760,8 @@ async function main(): Promise<void> {
     // Main control loop - check every 10 seconds for high responsiveness
     logger.info("Starting maintenance loop (10s check)...");
     setInterval(async () => {
-        // 1. Check for automated demo rolls
-        await checkAutomatedRolls();
+        // 1. Check for lifecycle events (Settlement / Roll) for ALL vaults
+        await checkVaultLifecycle();
 
         // 2. Fallback check for production schedule (UTC 0, 6, 12, 18)
         const now = new Date();
