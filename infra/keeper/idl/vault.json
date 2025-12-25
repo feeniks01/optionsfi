@@ -1,0 +1,1143 @@
+{
+  "address": "A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94",
+  "metadata": {
+    "name": "vault",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "OptionsFi V2 - Covered Call Vault"
+  },
+  "instructions": [
+    {
+      "name": "advance_epoch",
+      "docs": [
+        "Advance epoch (called by keeper after settlement)",
+        "Premium earned is credited to total_assets, increasing share value"
+      ],
+      "discriminator": [
+        93,
+        138,
+        234,
+        218,
+        241,
+        230,
+        132,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "premium_earned",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "collect_premium",
+      "docs": [
+        "Collect premium from market maker (called during epoch roll)",
+        "Transfers USDC from payer to vault's premium account"
+      ],
+      "discriminator": [
+        166,
+        199,
+        123,
+        128,
+        71,
+        141,
+        223,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_premium_account",
+          "writable": true
+        },
+        {
+          "name": "payer_token_account",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_share_metadata",
+      "docs": [
+        "Create metadata for the share token (vNVDAx, etc.)",
+        "Only callable by vault authority since vault PDA is the mint authority"
+      ],
+      "discriminator": [
+        176,
+        243,
+        233,
+        202,
+        218,
+        168,
+        53,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "share_mint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "metadata",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "token_metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "docs": [
+        "Deposit underlying tokens and receive vault shares"
+      ],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "share_mint",
+          "writable": true
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_share_account",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_vault",
+      "docs": [
+        "Initialize a new vault for a specific xStock asset"
+      ],
+      "discriminator": [
+        48,
+        191,
+        163,
+        44,
+        71,
+        129,
+        63,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "underlying_mint"
+        },
+        {
+          "name": "premium_mint"
+        },
+        {
+          "name": "share_mint",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "premium_token_account",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "asset_id",
+          "type": "string"
+        },
+        {
+          "name": "utilization_cap_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "pay_settlement",
+      "docs": [
+        "Pay out to market maker for ITM settlement",
+        "Only callable by vault authority"
+      ],
+      "discriminator": [
+        65,
+        54,
+        44,
+        166,
+        205,
+        55,
+        164,
+        205
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_premium_account",
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "recipient"
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "process_withdrawal",
+      "docs": [
+        "Process withdrawal after epoch settles"
+      ],
+      "discriminator": [
+        51,
+        97,
+        236,
+        17,
+        37,
+        33,
+        196,
+        64
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "withdrawal_request"
+          ]
+        },
+        {
+          "name": "withdrawal_request",
+          "writable": true
+        },
+        {
+          "name": "share_mint",
+          "writable": true
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "user_share_account",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "withdrawal_request"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_notional_exposure",
+      "docs": [
+        "Record notional exposure when an RFQ is filled (fractional options)",
+        "Premium is in premium_mint tokens (USDC)"
+      ],
+      "discriminator": [
+        26,
+        180,
+        108,
+        160,
+        15,
+        34,
+        179,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "notional_tokens",
+          "type": "u64"
+        },
+        {
+          "name": "premium",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "request_withdrawal",
+      "docs": [
+        "Request withdrawal (queued until epoch end)"
+      ],
+      "discriminator": [
+        251,
+        85,
+        121,
+        205,
+        56,
+        201,
+        12,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "withdrawal_request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "vault.epoch",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_share_account"
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Vault",
+      "discriminator": [
+        211,
+        8,
+        232,
+        43,
+        2,
+        152,
+        117,
+        119
+      ]
+    },
+    {
+      "name": "WithdrawalRequest",
+      "discriminator": [
+        242,
+        88,
+        147,
+        173,
+        182,
+        62,
+        229,
+        193
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DepositEvent",
+      "discriminator": [
+        120,
+        248,
+        61,
+        83,
+        31,
+        142,
+        107,
+        144
+      ]
+    },
+    {
+      "name": "EpochAdvancedEvent",
+      "discriminator": [
+        26,
+        197,
+        195,
+        116,
+        126,
+        48,
+        210,
+        42
+      ]
+    },
+    {
+      "name": "NotionalExposureEvent",
+      "discriminator": [
+        220,
+        74,
+        165,
+        136,
+        237,
+        183,
+        23,
+        38
+      ]
+    },
+    {
+      "name": "PremiumCollectedEvent",
+      "discriminator": [
+        76,
+        52,
+        166,
+        111,
+        182,
+        211,
+        215,
+        144
+      ]
+    },
+    {
+      "name": "SettlementPaidEvent",
+      "discriminator": [
+        97,
+        3,
+        234,
+        177,
+        141,
+        83,
+        59,
+        26
+      ]
+    },
+    {
+      "name": "WithdrawalProcessedEvent",
+      "discriminator": [
+        23,
+        252,
+        30,
+        4,
+        24,
+        110,
+        166,
+        133
+      ]
+    },
+    {
+      "name": "WithdrawalRequestedEvent",
+      "discriminator": [
+        82,
+        227,
+        155,
+        140,
+        223,
+        124,
+        77,
+        243
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6001,
+      "name": "ZeroShares",
+      "msg": "Calculated shares must be greater than zero"
+    },
+    {
+      "code": 6002,
+      "name": "InsufficientShares",
+      "msg": "Insufficient shares"
+    },
+    {
+      "code": 6003,
+      "name": "AlreadyProcessed",
+      "msg": "Withdrawal already processed"
+    },
+    {
+      "code": 6004,
+      "name": "EpochNotSettled",
+      "msg": "Epoch has not settled yet"
+    },
+    {
+      "code": 6005,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6006,
+      "name": "ExceedsUtilizationCap",
+      "msg": "Exceeds utilization cap"
+    }
+  ],
+  "types": [
+    {
+      "name": "DepositEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "shares_minted",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochAdvancedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "premium_earned",
+            "type": "u64"
+          },
+          {
+            "name": "notional_exposed",
+            "type": "u64"
+          },
+          {
+            "name": "avg_premium_bps",
+            "type": "u32"
+          },
+          {
+            "name": "total_assets",
+            "type": "u64"
+          },
+          {
+            "name": "total_shares",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NotionalExposureEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "notional_tokens",
+            "type": "u64"
+          },
+          {
+            "name": "premium",
+            "type": "u64"
+          },
+          {
+            "name": "total_notional_this_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "total_premium_this_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "avg_premium_bps",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PremiumCollectedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SettlementPaidEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_id",
+            "type": "string"
+          },
+          {
+            "name": "underlying_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "share_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_token_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "premium_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "premium_token_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_assets",
+            "type": "u64"
+          },
+          {
+            "name": "total_shares",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "utilization_cap_bps",
+            "type": "u16"
+          },
+          {
+            "name": "last_roll_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "pending_withdrawals",
+            "type": "u64"
+          },
+          {
+            "name": "epoch_notional_exposed",
+            "type": "u64"
+          },
+          {
+            "name": "epoch_premium_earned",
+            "type": "u64"
+          },
+          {
+            "name": "epoch_premium_per_token_bps",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalProcessedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "shares",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalRequest",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "shares",
+            "type": "u64"
+          },
+          {
+            "name": "request_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "processed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalRequestedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "shares",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -94,9 +94,10 @@ export class OnChainClient {
         try {
             // Load IDL from file - try multiple locations
             const possiblePaths = [
-                path.resolve(__dirname, "../../../target/idl/vault.json"),  // From keeper/src to project root
+                path.resolve(__dirname, "../idl/vault.json"),  // Docker: /app/idl/vault.json
+                path.resolve(process.cwd(), "idl/vault.json"), // Docker alternative
+                path.resolve(__dirname, "../../../target/idl/vault.json"),  // Local dev: from keeper/src to project root
                 path.resolve(__dirname, "../../target/idl/vault.json"),
-                path.resolve(__dirname, "../idl/vault.json"),
             ];
 
             let idlPath: string | null = null;
