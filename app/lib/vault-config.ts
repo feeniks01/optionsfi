@@ -36,10 +36,10 @@ export const VAULT_CONFIG: Record<string, VaultMetadata> = {
     },
 
     // Production vaults
-    nvdax: {
+    nvdax2: {
         name: "NVDAx Vault",
         symbol: "NVDAx",
-        assetId: "NVDAx",
+        assetId: "NVDAx2",
         strategy: "Covered Call",
         logo: "/nvidiax_logo.png",
         accentColor: "#76B900",
