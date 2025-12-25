@@ -2,17 +2,19 @@
  * OptionsFi RFQ Router
  * 
  * Simple quote aggregation service that:
- * - Accepts RFQ requests from the keeper
+ * - Accepts RFQ requests from the keeper/frontend
  * - Broadcasts RFQs to connected market makers via WebSocket
  * - Collects quotes and returns best fill
+ * 
+ * Single port deployment: HTTP and WebSocket share the same port.
  */
 
 const express = require("express");
 const { WebSocketServer } = require("ws");
 const { v4: uuidv4 } = require("uuid");
+const http = require("http");
 
 const PORT = process.env.PORT || 3005;
-const WS_PORT = process.env.WS_PORT || 3006;
 
 const app = express();
 app.use(express.json());
@@ -32,8 +34,11 @@ app.use((req, res, next) => {
 const rfqs = new Map();
 const makers = new Map();
 
-// WebSocket server for market makers
-const wss = new WebSocketServer({ port: WS_PORT });
+// Create HTTP server
+const server = http.createServer(app);
+
+// WebSocket server attached to same HTTP server
+const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws, req) => {
     const makerId = req.url?.split("makerId=")[1] || `maker-${Date.now()}`;
@@ -68,7 +73,7 @@ function handleMakerMessage(makerId, msg) {
                 premium: msg.premium,
                 timestamp: Date.now(),
             });
-            console.log(`Quote received for ${msg.rfqId} from ${makerId}: ${msg.premium}`);
+            console.log(`Quote received for ${msg.rfqId} from ${makerId}: ${msg.premium / 1e6} USDC`);
         }
     }
 }
@@ -104,7 +109,7 @@ app.post("/rfq", (req, res) => {
     };
 
     rfqs.set(rfqId, rfq);
-    console.log(`RFQ created: ${rfqId}`, { underlying, strike, size });
+    console.log(`RFQ created: ${rfqId}`, { underlying, strike, size: size / 1e6 });
 
     // Broadcast to makers
     broadcastToMakers({
@@ -158,7 +163,7 @@ app.post("/rfq/:rfqId/fill", (req, res) => {
         filledAt: Date.now(),
     };
 
-    console.log(`RFQ ${rfq.rfqId} filled by ${bestQuote.maker} at ${bestQuote.premium}`);
+    console.log(`RFQ ${rfq.rfqId} filled by ${bestQuote.maker} at ${bestQuote.premium / 1e6} USDC`);
 
     // Notify winning maker
     const makerWs = makers.get(bestQuote.maker);
@@ -179,10 +184,42 @@ app.get("/health", (req, res) => {
         status: "healthy",
         connectedMakers: makers.size,
         activeRfqs: rfqs.size,
+        uptime: process.uptime(),
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`RFQ Router HTTP server listening on port ${PORT}`);
-    console.log(`RFQ Router WebSocket server listening on port ${WS_PORT}`);
+// Root endpoint for quick status
+app.get("/", (req, res) => {
+    res.json({
+        service: "OptionsFi RFQ Router",
+        version: "1.0.0",
+        status: "online",
+        makers: makers.size,
+    });
 });
+
+// Start server
+server.listen(PORT, () => {
+    console.log("========================================");
+    console.log("OptionsFi RFQ Router Starting");
+    console.log("========================================");
+    console.log(`HTTP + WebSocket server listening on port ${PORT}`);
+    console.log(`Health: http://localhost:${PORT}/health`);
+    console.log(`WS: ws://localhost:${PORT}?makerId=your-id`);
+    console.log("----------------------------------------");
+});
+
+// Cleanup old RFQs every 5 minutes
+setInterval(() => {
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    let cleaned = 0;
+    for (const [rfqId, rfq] of rfqs) {
+        if (rfq.createdAt < fiveMinutesAgo) {
+            rfqs.delete(rfqId);
+            cleaned++;
+        }
+    }
+    if (cleaned > 0) {
+        console.log(`Cleaned ${cleaned} expired RFQs`);
+    }
+}, 5 * 60 * 1000);
