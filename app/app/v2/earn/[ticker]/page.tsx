@@ -11,6 +11,7 @@ import { getVaultTheme, type VaultTheme } from "../../../../themes/vaultThemes";
 
 const PYTH_FEEDS: Record<string, string> = {
     nvdax: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    demonvdax: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f", // Same NVDA feed
     tslax: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
     spyx: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
     aaplx: "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
@@ -30,6 +31,7 @@ const VAULT_METADATA: Record<string, {
     logo: string;
 }> = {
     nvdax: { name: "NVDAx Vault", symbol: "NVDAx", strategy: "Covered Call", tier: "Normal", strikeOffset: 0.10, apy: 12.4, isLive: true, premiumRange: [0.8, 1.2], decimals: 6, logo: "/nvidiax_logo.png" },
+    demonvdax: { name: "Demo NVDAx", symbol: "NVDAx", strategy: "Demo Vault", tier: "Demo", strikeOffset: 0.10, apy: 0, isLive: true, premiumRange: [0.8, 1.2], decimals: 6, logo: "/nvidiax_logo.png" },
     aaplx: { name: "AAPLx Vault", symbol: "AAPLx", strategy: "Covered Call", tier: "Conservative", strikeOffset: 0.05, apy: 8.2, isLive: false, premiumRange: [0.4, 0.7], decimals: 6, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/6849799260ee65bf38841f90_Ticker%3DAAPL%2C%20Company%20Name%3DApple%20Inc.%2C%20size%3D256x256.svg" },
     tslax: { name: "TSLAx Vault", symbol: "TSLAx", strategy: "Covered Call", tier: "Aggressive", strikeOffset: 0.08, apy: 18.6, isLive: false, premiumRange: [1.2, 2.0], decimals: 6, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/684aaf9559b2312c162731f5_Ticker%3DTSLA%2C%20Company%20Name%3DTesla%20Inc.%2C%20size%3D256x256.svg" },
     spyx: { name: "SPYx Vault", symbol: "SPYx", strategy: "Covered Call", tier: "Conservative", strikeOffset: 0.05, apy: 6.5, isLive: false, premiumRange: [0.3, 0.5], decimals: 6, logo: "https://cdn.prod.website-files.com/655f3efc4be468487052e35a/685116624ae31d5ceb724895_Ticker%3DSPX%2C%20Company%20Name%3DSP500%2C%20size%3D256x256.svg" },
