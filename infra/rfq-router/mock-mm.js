@@ -107,8 +107,8 @@ function connect() {
         }
     });
 
-    ws.on("close", () => {
-        console.log("Disconnected from RFQ Router");
+    ws.on("close", (code, reason) => {
+        console.log(`Disconnected from RFQ Router - Code: ${code}, Reason: ${reason?.toString() || 'none'}`);
         scheduleReconnect();
     });
 
