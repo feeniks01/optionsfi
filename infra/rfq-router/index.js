@@ -162,7 +162,7 @@ app.post("/rfq", (req, res) => {
     };
 
     rfqs.set(rfqId, rfq);
-    logEvent("rfq_created", { rfqId, underlying, optionType, strike, size: size / 1e6, makerCount: makers.size });
+    logEvent("rfq_created", { rfqId, underlying, optionType, strike, size: size, makerCount: makers.size });
 
     // Broadcast to makers
     broadcastToMakers({

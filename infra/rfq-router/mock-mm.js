@@ -10,6 +10,7 @@ const { Connection, Keypair, PublicKey, Transaction } = require("@solana/web3.js
 const { getAssociatedTokenAddress, createTransferInstruction, createAssociatedTokenAccountInstruction, getAccount, TOKEN_PROGRAM_ID } = require("@solana/spl-token");
 const fs = require("fs");
 const path = require("path");
+const bs58 = require("bs58");
 
 const ROUTER_WS_URL = process.env.ROUTER_WS_URL || "ws://localhost:3006";
 const MAKER_ID = process.env.MAKER_ID || "mock-mm-usdc";
@@ -38,11 +39,31 @@ function deriveVaultPda(assetId) {
 
 // Load wallet from file or environment
 function loadWallet() {
-    // Try environment variable first (base64-encoded keypair)
+    // Try environment variable first
     if (process.env.WALLET_PRIVATE_KEY) {
+        const rawKey = process.env.WALLET_PRIVATE_KEY.trim();
         try {
-            const decoded = Buffer.from(process.env.WALLET_PRIVATE_KEY, "base64");
-            wallet = Keypair.fromSecretKey(Uint8Array.from(decoded));
+            let secretKey;
+
+            // 1. Try JSON Array
+            if (rawKey.startsWith("[") && rawKey.endsWith("]")) {
+                secretKey = Uint8Array.from(JSON.parse(rawKey));
+            }
+            // 2. Try Base58 (Standard Solana)
+            else {
+                try {
+                    secretKey = bs58.decode(rawKey);
+                } catch (e) {
+                    // 3. Fallback to Base64
+                    secretKey = Uint8Array.from(Buffer.from(rawKey, "base64"));
+                }
+            }
+
+            if (secretKey.length !== 64) {
+                throw new Error(`Invalid key length: ${secretKey.length}. Expected 64 (32 priv + 32 pub).`);
+            }
+
+            wallet = Keypair.fromSecretKey(secretKey);
             console.log(`Wallet loaded from env: ${wallet.publicKey.toBase58()}`);
             return;
         } catch (error) {
