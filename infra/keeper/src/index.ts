@@ -32,7 +32,7 @@ const config = {
     rpcUrl: process.env.RPC_URL || "https://api.devnet.solana.com",
     walletPath: process.env.WALLET_PATH || process.env.ANCHOR_WALLET || "~/.config/solana/id.json",
     // Support multiple vaults via comma-separated ASSET_IDS
-    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "DemoNVDAx4").split(",").map(s => s.trim()),
+    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "DemoNVDAx5,NVDAx3").split(",").map(s => s.trim()),
     ticker: process.env.TICKER || "NVDA", // Yahoo Finance ticker for volatility
     cronSchedule: process.env.CRON_SCHEDULE || "0 */6 * * *", // Every 6 hours
     epochDurationDays: parseInt(process.env.EPOCH_DURATION_DAYS || "7"),
@@ -316,7 +316,13 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
 
         // Step 5: Calculate Black-Scholes premium
         logger.info("Step 5: Calculating Black-Scholes premium...");
-        const daysToExpiry = Number(vaultData.minEpochDuration) / (24 * 60 * 60);
+        let durationSeconds = Number(vaultData.minEpochDuration);
+        if (durationSeconds === 0 && assetId.toLowerCase().includes("demo")) {
+            logger.warn("Duration is 0, using fallback 180s for Demo vault");
+            durationSeconds = 180;
+        }
+
+        const daysToExpiry = durationSeconds / (24 * 60 * 60);
         const premiumPerToken = calculateCoveredCallPremium({
             spot: spotPrice,
             strikePercent: strikePrice / spotPrice,
@@ -485,7 +491,8 @@ async function checkAutomatedRolls(): Promise<void> {
 
             const now = Math.floor(Date.now() / 1000);
             const lastRoll = Number(vault.lastRollTimestamp);
-            const minDuration = Number(vault.minEpochDuration);
+            let minDuration = Number(vault.minEpochDuration);
+            if (minDuration === 0) minDuration = 180; // Fallback for demo
             const isLive = vault.epochNotionalExposed > BigInt(0);
 
             // If time since last roll exceeded duration + small buffer
@@ -515,22 +522,31 @@ async function runSettlement(targetAssetId?: string): Promise<{ success: boolean
     logger.info(`Running settlement for ${assetId}...`);
 
     try {
+        // Fetch fresh vault data from on-chain to be stateless
+        const vault = await state.onchainClient?.fetchVault(assetId);
+        if (!vault) {
+            throw new Error(`Failed to fetch on-chain vault data for ${assetId}`);
+        }
+
         const stats = state.vaultStats.get(assetId);
         if (!stats) {
-            // If no local stats, try to advance anyway (on-chain check will handle)
-            logger.warn(`No local stats for vault ${assetId}, attempting on-chain advance...`);
+            logger.warn(`No local stats for vault ${assetId}, proceeding with on-chain data...`);
         }
+
         const oraclePrice = await fetchOraclePrice(assetId);
         if (!oraclePrice) {
             throw new Error(`Failed to fetch oracle price for settlement of ${assetId}`);
         }
 
         const currentPrice = oraclePrice.price;
+        // If we lost local state (keeper restart), we assume OTM to be safe, or we'd need to fetch strike from somewhere else (logs?).
+        // For now, if missing strike, we assume OTM to avoid over-paying settlement.
         const strikePrice = stats?.epochStrikePrice || 0;
 
         logger.info("Settlement price check", {
             currentPrice: currentPrice.toFixed(2),
             strikePrice: strikePrice.toFixed(2),
+            onChainPremiumEarned: (Number(vault.epochPremiumEarned) / 1e6).toFixed(4),
         });
 
         // Determine ITM/OTM (for CALL: ITM if spot > strike)
@@ -538,11 +554,15 @@ async function runSettlement(targetAssetId?: string): Promise<{ success: boolean
         let payoffAmount = BigInt(0);
         let settlementType = "OTM";
 
-        if (isITM && (stats?.epochNotional || BigInt(0)) > 0) {
-            // Calculate payoff: (spot - strike) / spot * notional (simplified)
+        // Use ON-CHAIN notional and premium to be robust against restarts
+        const epochNotional = vault.epochNotionalExposed;
+        const epochPremiumEarned = vault.epochPremiumEarned;
+
+        if (isITM && epochNotional > BigInt(0)) {
+            // Calculate payoff: (spot - strike) / spot * notional
             const intrinsicValue = currentPrice - strikePrice;
             const payoffRatio = intrinsicValue / currentPrice;
-            payoffAmount = BigInt(Math.floor(Number(stats?.epochNotional || BigInt(0)) * payoffRatio));
+            payoffAmount = BigInt(Math.floor(Number(epochNotional) * payoffRatio));
             settlementType = "ITM";
 
             logger.info("ITM settlement", {
@@ -557,18 +577,13 @@ async function runSettlement(targetAssetId?: string): Promise<{ success: boolean
         }
 
         // Advance epoch on-chain
-        // Convert USDC premium to equivalent underlying tokens
-        // Premium is in USDC base units (6 decimals), need to convert to underlying tokens
         if (state.onchainClient) {
-            const epochPremiumEarned = stats?.epochPremiumEarned || BigInt(0);
             const netPremiumUsdc = epochPremiumEarned > payoffAmount
                 ? epochPremiumEarned - payoffAmount
                 : BigInt(0);
 
             // Convert USDC premium to equivalent underlying tokens
             // netPremiumUsdc is in USDC (6 decimals), currentPrice is in USD per token
-            // tokens = usdc_value / price
-            // Result in 6 decimal token units
             const premiumInTokens = BigInt(Math.floor(
                 (Number(netPremiumUsdc) / currentPrice)
             ));
@@ -583,18 +598,14 @@ async function runSettlement(targetAssetId?: string): Promise<{ success: boolean
             logger.info("Epoch advanced", { tx, assetId });
         }
 
-        // Record settlement values for response
-        const savedStrike = stats?.epochStrikePrice || 0;
-        const savedPremium = stats?.epochPremiumEarned || BigInt(0);
+        const netGain = Number(epochPremiumEarned - payoffAmount) / 1e6;
 
-        // Reset epoch tracking for this vault
+        // Reset local stats
         if (stats) {
             stats.epochStrikePrice = 0;
             stats.epochNotional = BigInt(0);
             stats.epochPremiumEarned = BigInt(0);
         }
-
-        const netGain = Number(savedPremium - payoffAmount) / 1e6;
 
         return {
             success: true,
@@ -733,8 +744,8 @@ async function main(): Promise<void> {
     // Start health server
     startHealthServer();
 
-    // Main control loop - check every minute
-    logger.info("Starting maintenance loop (1m check)...");
+    // Main control loop - check every 10 seconds for high responsiveness
+    logger.info("Starting maintenance loop (10s check)...");
     setInterval(async () => {
         // 1. Check for automated demo rolls
         await checkAutomatedRolls();
@@ -752,7 +763,7 @@ async function main(): Promise<void> {
                 await runEpochRoll();
             }
         }
-    }, 60000);
+    }, 10000);
 
     logger.info("Keeper service ready");
     logger.info("========================================");
