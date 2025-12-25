@@ -338,7 +338,7 @@ export default function VaultDetailPage() {
                                 </span>
                             </p>
                             <p className="text-2xl font-bold text-white">{utilization}%</p>
-                            <p className="text-xs text-gray-500 mt-0.5">of {vaultData?.utilizationCapBps ? vaultData.utilizationCapBps / 100 : 60}%</p>
+                            <p className="text-xs text-gray-500 mt-0.5">of {vaultData?.utilizationCapBps ? vaultData.utilizationCapBps / 100 : 80}%</p>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
                             <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
@@ -423,7 +423,7 @@ export default function VaultDetailPage() {
                         <div className="p-3 rounded-lg bg-gray-900/40 border border-gray-800/40 mb-3">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-400">Position</span>
-                                <span className="text-sm text-gray-300">Sold <span className="text-white font-semibold">0</span> / Target {vaultData?.utilizationCapBps ? vaultData.utilizationCapBps / 100 : 60}%</span>
+                                <span className="text-sm text-gray-300">Sold <span className="text-white font-semibold">0</span> / Target {vaultData?.utilizationCapBps ? vaultData.utilizationCapBps / 100 : 80}%</span>
                             </div>
                             <div className="h-2.5 rounded-full bg-gray-800 overflow-hidden flex">
                                 <div className="h-full w-0 rounded-full" style={{ backgroundColor: theme.accent }} />
@@ -526,7 +526,9 @@ export default function VaultDetailPage() {
                                     <Zap className="w-4 h-4 text-blue-400" />
                                     <span className="text-blue-300">
                                         {tvlTokens > 0
-                                            ? <><strong>Awaiting Manual Roll</strong> — Epoch #{epoch} · Ready for execution</>
+                                            ? vaultMeta?.isDemo
+                                                ? <><strong>Awaiting Manual Roll</strong> — Epoch #{epoch} · Ready for execution</>
+                                                : <><strong>Auto-rolling</strong> — Epoch #{epoch} · Keeper will roll at next schedule</>
                                             : `Live on Devnet. Deposit to start Epoch #${epoch}.`
                                         }
                                     </span>
