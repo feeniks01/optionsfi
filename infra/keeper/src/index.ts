@@ -148,7 +148,7 @@ async function fetchOraclePrice(assetId: string): Promise<OraclePrice | null> {
     try {
         const response = await axios.get(
             `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`,
-            { timeout: 5000 }
+            { timeout: 15000 }
         );
 
         const priceData = response.data?.parsed?.[0]?.price;
@@ -289,7 +289,7 @@ async function runEpochRollForVault(assetId: string): Promise<boolean> {
                 expiry: Date.now() + config.epochDurationDays * 24 * 60 * 60 * 1000,
                 size: notionalTokens,
                 premiumFloor: Math.floor(totalPremium * 0.8), // 80% of BS price minimum
-            }, { timeout: 5000 });
+            }, { timeout: 15000 });
 
             const rfqId = rfqResponse.data.rfqId;
             logger.info("RFQ created", { rfqId });
@@ -301,7 +301,7 @@ async function runEpochRollForVault(assetId: string): Promise<boolean> {
             const fillResponse = await axios.post(
                 `${config.rfqRouterUrl}/rfq/${rfqId}/fill`,
                 {},
-                { timeout: 5000 }
+                { timeout: 15000 }
             );
 
             if (fillResponse.data.filled) {
