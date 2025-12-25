@@ -292,9 +292,16 @@ export function loadKeypair(keypairPath: string): Keypair {
     if (process.env.WALLET_PRIVATE_KEY) {
         try {
             const decoded = Buffer.from(process.env.WALLET_PRIVATE_KEY, "base64");
-            return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(decoded.toString())));
-        } catch (error) {
-            console.error("Failed to load wallet from WALLET_PRIVATE_KEY:", error);
+            try {
+                // Try to parse as JSON array string
+                const keypairData = JSON.parse(decoded.toString());
+                return Keypair.fromSecretKey(Uint8Array.from(keypairData));
+            } catch (e) {
+                // If not JSON, assume raw secret key bytes
+                return Keypair.fromSecretKey(new Uint8Array(decoded));
+            }
+        } catch (error: any) {
+            console.error("Failed to load wallet from WALLET_PRIVATE_KEY:", error.message);
         }
     }
 

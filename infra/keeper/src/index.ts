@@ -46,10 +46,12 @@ const config = {
 
 // Pyth Hermes API for real-time prices
 const HERMES_URL = "https://hermes.pyth.network";
-const PYTH_FEED_IDS: Record<string, string> = {
-    NVDAx3: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f", // NVDA/USD from Pyth
-    DemoNVDAx5: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f", // Demo vault
-};
+const NVDA_PRICE_FEED_ID = "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f"; // NVDA/USD
+
+function getFeedIdForAsset(assetId: string): string {
+    // For now, all vaults use NVDA as underlying
+    return NVDA_PRICE_FEED_ID;
+}
 
 // ============================================================================
 // Logger
@@ -137,50 +139,106 @@ interface OraclePrice {
     timestamp: Date;
 }
 
-async function fetchOraclePrice(assetId: string): Promise<OraclePrice | null> {
-    const feedId = PYTH_FEED_IDS[assetId];
+async function fetchOraclePrice(assetId: string, retries = 3): Promise<OraclePrice | null> {
+    const feedId = getFeedIdForAsset(assetId);
 
-    if (!feedId) {
-        logger.warn("No Pyth feed ID for asset", { assetId });
-        return null;
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            // Use standard URL format that works in terminal/curl
+            const response = await axios.get(
+                `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`,
+                { timeout: 30000 }
+            );
+
+            const priceData = response.data?.parsed?.[0]?.price;
+            if (!priceData) {
+                throw new Error(`Invalid price response for ${feedId}`);
+            }
+
+            const price = parseFloat(priceData.price) * Math.pow(10, priceData.expo);
+            const conf = parseFloat(priceData.conf) * Math.pow(10, priceData.expo);
+
+            logger.info("Fetched price from Pyth", {
+                assetId,
+                feedId: feedId.slice(0, 10) + "...",
+                price: price.toFixed(2),
+                confidence: conf.toFixed(4),
+                attempt: attempt + 1
+            });
+
+            return {
+                price,
+                confidence: conf,
+                timestamp: new Date(),
+            };
+        } catch (error: any) {
+            logger.warn(`Oracle fetch attempt ${attempt + 1}/${retries} failed`, {
+                assetId,
+                error: error.message
+            });
+            if (attempt < retries - 1) {
+                await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+            }
+        }
     }
+
+    logger.error("Failed to fetch oracle price after all retries", { assetId });
+    return null;
+}
+
+// Batch fetch helper to avoid serial requests to Hermes
+async function fetchPricesInBatch(assetIds: string[]): Promise<Map<string, OraclePrice>> {
+    const priceMap = new Map<string, OraclePrice>();
+    const uniqueFeedIds = new Set<string>();
+    const feedToAsset = new Map<string, string[]>();
+
+    for (const assetId of assetIds) {
+        const feedId = getFeedIdForAsset(assetId);
+        if (feedId) {
+            uniqueFeedIds.add(feedId);
+            if (!feedToAsset.has(feedId)) feedToAsset.set(feedId, []);
+            feedToAsset.get(feedId)!.push(assetId);
+        }
+    }
+
+    if (uniqueFeedIds.size === 0) return priceMap;
 
     try {
-        const response = await axios.get(
-            `${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`,
-            { timeout: 15000 }
-        );
+        const idsParam = Array.from(uniqueFeedIds).map(id => `ids[]=${id}`).join("&");
+        const url = `${HERMES_URL}/v2/updates/price/latest?${idsParam}&parsed=true`;
 
-        const priceData = response.data?.parsed?.[0]?.price;
-        if (!priceData) {
-            throw new Error("Invalid price response");
+        const response = await axios.get(url, { timeout: 30000 });
+        const parsedData = response.data?.parsed || [];
+
+        for (const item of parsedData) {
+            const feedIdLong = item.id.startsWith("0x") ? item.id : `0x${item.id}`;
+            const matchedAssets = feedToAsset.get(feedIdLong) || [];
+
+            const price = parseFloat(item.price.price) * Math.pow(10, item.price.expo);
+            const conf = parseFloat(item.price.conf) * Math.pow(10, item.price.expo);
+            const oraclePrice = { price, confidence: conf, timestamp: new Date() };
+
+            for (const assetId of matchedAssets) {
+                priceMap.set(assetId, oraclePrice);
+            }
         }
-
-        const price = parseFloat(priceData.price) * Math.pow(10, priceData.expo);
-        const conf = parseFloat(priceData.conf) * Math.pow(10, priceData.expo);
-
-        logger.info("Fetched price from Pyth", {
-            assetId,
-            price: price.toFixed(2),
-            confidence: conf.toFixed(4)
-        });
-
-        return {
-            price,
-            confidence: conf,
-            timestamp: new Date(),
-        };
-    } catch (error: any) {
-        logger.error("Failed to fetch oracle price", { error: error.message });
-        return null;
+    } catch (e: any) {
+        logger.error("Batch price fetch failed", { error: e.message });
+        // Fallback to individual fetches if batch fails
+        for (const assetId of assetIds) {
+            const p = await fetchOraclePrice(assetId);
+            if (p) priceMap.set(assetId, p);
+        }
     }
+
+    return priceMap;
 }
 
 // ============================================================================
 // Epoch Roll Logic
 // ============================================================================
 
-async function runEpochRollForVault(assetId: string): Promise<boolean> {
+async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePrice): Promise<boolean> {
     logger.info("Processing vault", { assetId });
 
     try {
@@ -216,7 +274,7 @@ async function runEpochRollForVault(assetId: string): Promise<boolean> {
 
         // Step 2: Fetch oracle price
         logger.info("Step 2: Fetching oracle price...");
-        const oraclePrice = await fetchOraclePrice(assetId);
+        const oraclePrice = preFetchedPrice || await fetchOraclePrice(assetId);
         if (!oraclePrice) {
             throw new Error("Failed to fetch oracle price");
         }
@@ -377,9 +435,12 @@ async function runEpochRoll(): Promise<boolean> {
     });
     logger.info("========================================");
 
+    // Initial batch fetch of prices
+    const priceMap = await fetchPricesInBatch(config.assetIds);
+
     let allSuccess = true;
     for (const assetId of config.assetIds) {
-        const success = await runEpochRollForVault(assetId);
+        const success = await runEpochRollForVault(assetId, priceMap.get(assetId));
         if (!success) allSuccess = false;
     }
 
