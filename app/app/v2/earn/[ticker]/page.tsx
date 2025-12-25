@@ -80,7 +80,8 @@ export default function VaultDetailPage() {
     const rfq = useRfq();
 
     // Computed values from on-chain data
-    const isLive = !!vaultData;
+    // Demo vaults are always "live" for testing - show demo panel and enable functionality
+    const isLive = !!vaultData || (vaultMeta?.isDemo ?? false);
     const apy = vaultData?.apy ?? 0;
     const tier = vaultMeta ? computeTier(apy, vaultMeta.isDemo) : "Demo";
 

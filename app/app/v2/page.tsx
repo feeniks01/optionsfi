@@ -28,8 +28,8 @@ export default function V2EarnDashboard() {
         const tvlTokens = liveData?.tvl ?? 0;
         // APY comes from on-chain calculation (default to 0 if not live)
         const apy = liveData?.apy ?? 0;
-        // Is vault live on-chain?
-        const isLive = !!liveData;
+        // Is vault live on-chain? Demo vaults are always "live" for testing
+        const isLive = !!liveData || meta.isDemo;
         // Compute tier dynamically from APY
         const tier = computeTier(apy, meta.isDemo);
 
