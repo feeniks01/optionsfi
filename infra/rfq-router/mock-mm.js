@@ -48,6 +48,7 @@ function loadWallet() {
         }
 
         console.log(`WALLET_PRIVATE_KEY length: ${rawKey.length} chars`);
+        console.log(`Key preview: "${rawKey.substring(0, 30)}..."`);
 
         try {
             let secretKey;
