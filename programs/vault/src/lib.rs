@@ -49,42 +49,23 @@ pub mod vault {
 
         let vault = &mut ctx.accounts.vault;
 
-        // Calculate shares to mint (1:1 if first deposit, otherwise pro-rata)
-        let shares_to_mint = if vault.total_shares == 0 {
-            require!(amount >= 1000, VaultError::InsufficientLiquidity);
-            // Lock first 1000 shares (dead shares) to prevent inflation attack
-            // We mint them and never add them to total_shares owned by users?
-            // Actually, best practice: Mint them to a dead PDA and COUNT them in total_shares.
-            // This ensures the "price" of 1 share is established as `total_assets / total_shares`.
+        // Calculate shares to mint
+        // effective_total_shares = total_shares + virtual_offset
+        let effective_shares = vault.total_shares.checked_add(vault.virtual_offset).ok_or(VaultError::Overflow)?;
+        
+        let shares_to_mint = if effective_shares == 0 {
+            // First deposit: set virtual offset (no real shares minted)
+            // Virtual offset prevents share price manipulation attacks
+            vault.virtual_offset = 1000;
             
-            // Mint 1000 shares to 'dead' account
-            let asset_id = vault.asset_id.as_bytes();
-            let seeds = &[
-                b"vault",
-                asset_id,
-                &[vault.bump],
-            ];
-            let signer_seeds = &[&seeds[..]];
-
-            token::mint_to(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    MintTo {
-                        mint: ctx.accounts.share_mint.to_account_info(),
-                        to: ctx.accounts.share_escrow.to_account_info(),
-                        authority: vault.to_account_info(),
-                    },
-                    signer_seeds,
-                ),
-                1000,
-            )?;
-            
-            // User gets amount - 1000
-            amount - 1000
+            // User gets full value - no tokens "lost"
+            // shares = amount * (total_shares + virtual_offset) / total_assets
+            // But total_assets is 0, so we use 1:1 initially
+            amount
         } else {
-            // shares = amount * total_shares / total_assets
+            // shares = amount * effective_shares / total_assets
             (amount as u128)
-                .checked_mul(vault.total_shares as u128)
+                .checked_mul(effective_shares as u128)
                 .ok_or(VaultError::Overflow)?
                 .checked_div(vault.total_assets as u128)
                 .ok_or(VaultError::Overflow)? as u64
@@ -134,11 +115,6 @@ pub mod vault {
         vault.total_shares = vault.total_shares
             .checked_add(shares_to_mint)
             .ok_or(VaultError::Overflow)?;
-        
-        // If first deposit, we also added 1000 dead shares to total_shares
-        if vault.total_shares == shares_to_mint {
-             vault.total_shares = vault.total_shares + 1000;
-        }
 
         emit!(DepositEvent {
             vault: vault.key(),
@@ -210,11 +186,14 @@ pub mod vault {
 
         let shares = withdrawal.shares;
 
-        // Calculate underlying amount to return
+        // Calculate underlying amount to return using effective shares
+        // effective_shares = total_shares + virtual_offset
+        let effective_shares = vault.total_shares.checked_add(vault.virtual_offset).ok_or(VaultError::Overflow)?;
+        
         let amount = (shares as u128)
             .checked_mul(vault.total_assets as u128)
             .ok_or(VaultError::Overflow)?
-            .checked_div(vault.total_shares as u128)
+            .checked_div(effective_shares as u128)
             .ok_or(VaultError::Overflow)? as u64;
 
         // Burn user's shares
@@ -572,6 +551,9 @@ pub struct Vault {
     // State
     pub total_assets: u64,
     pub total_shares: u64,
+    /// Virtual offset for share calculations (prevents first-depositor attacks)
+    /// effective_shares = total_shares + virtual_offset
+    pub virtual_offset: u64,
     pub epoch: u64,
     pub utilization_cap_bps: u16,
     pub min_epoch_duration: i64,
@@ -612,8 +594,8 @@ pub struct InitializeVault<'info> {
         init,
         payer = authority,
         // Space: 8 (discriminator) + 32 (authority) + 68 (asset_id string max) 
-        //        + 32*6 (mints and accounts) + 8*6 (u64 fields) + 2 + 8 + 4 + 1
-        space = 8 + 32 + 68 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8 + 2 + 8 + 8 + 8 + 8 + 4 + 1,
+        //        + 32*6 (mints and accounts) + 8*7 (u64 fields incl virtual_offset) + 2 + 8 + 4 + 1
+        space = 8 + 32 + 68 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 2 + 8 + 8 + 8 + 8 + 4 + 1,
         seeds = [b"vault", asset_id.as_bytes()],
         bump
     )]

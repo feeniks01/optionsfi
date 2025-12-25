@@ -177,21 +177,25 @@ cd app && npm run dev
 
 The vault program implements multiple layers of security to protect depositors:
 
-### 1. Dead Shares (First Deposit Protection)
+### 1. Virtual Offset (First Deposit Protection)
 
 **Problem:** Share price manipulation attacks where an attacker deposits a tiny amount, then donates tokens directly to inflate share price, causing subsequent depositors to receive zero shares.
 
-**Solution:** On the first deposit, 1000 shares are minted to a "dead" address (`111...11111`).
+**Solution:** On the first deposit, a virtual offset is set in the vault's accounting (no real shares are minted or "burned"):
 
 ```rust
-// First depositor protection
-if vault.total_shares == 0 {
-    vault.total_shares = DEAD_SHARES; // 1000 shares locked forever
-    // User receives: shares - DEAD_SHARES
+// First deposit: set virtual offset (no real tokens minted)
+if effective_shares == 0 {
+    vault.virtual_offset = 1000;  // Pure accounting, no token loss
+    shares_to_mint = amount;      // User gets FULL value
 }
+
+// All share calculations use:
+effective_shares = total_shares + virtual_offset;
+share_price = total_assets / effective_shares;
 ```
 
-**Impact:** Minimum viable deposit is ~1001 tokens to receive any shares. Prevents zero-share attacks.
+**Impact:** First depositor gets **full value** of their deposit. No tokens are "lost" to a dead address. The virtual offset provides the same security as dead shares but with zero cost to users.
 
 ### 2. Market Maker Whitelist
 
