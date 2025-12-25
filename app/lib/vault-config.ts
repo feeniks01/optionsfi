@@ -28,7 +28,7 @@ export const VAULT_CONFIG: Record<string, VaultMetadata> = {
         strategy: "Demo Vault",
         logo: "/nvidiax_logo.png",
         accentColor: "#76B900",
-        strikeOffset: 0.10,
+        strikeOffset: 0.01,
         premiumRange: [0.8, 1.2],
         isDemo: true,
         decimals: 6,

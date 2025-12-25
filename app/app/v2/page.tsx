@@ -70,7 +70,7 @@ export default function V2EarnDashboard() {
 
     // Update next roll countdown
     useEffect(() => {
-        const interval = setInterval(() => setNextRoll(getNextRollTime()), 60000);
+        const interval = setInterval(() => setNextRoll(getNextRollTime()), 1000);
         return () => clearInterval(interval);
     }, []);
 
@@ -95,6 +95,16 @@ export default function V2EarnDashboard() {
         // Compute tier dynamically from APY
         const tier = computeTier(apy, meta.isDemo);
 
+        // Calculate per-vault roll time
+        let rollTime = nextRoll.timeString;
+        if (meta.isDemo) {
+            const now = Math.floor(Date.now() / 1000);
+            const remaining = Math.max(0, 180 - (now % 180));
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            rollTime = `${m}m ${s}s`;
+        }
+
         return {
             id,
             name: meta.name,
@@ -109,6 +119,7 @@ export default function V2EarnDashboard() {
             userValueUsd,
             isLive,
             isDemo: meta.isDemo,
+            rollTime,
         };
     });
 
@@ -290,7 +301,7 @@ export default function V2EarnDashboard() {
                                     <Clock className="w-3 h-3" />
                                     Next Roll
                                 </span>
-                                <span className="text-sm font-medium text-foreground">{vault.isLive ? nextRoll.timeString : "Pending"}</span>
+                                <span className="text-sm font-medium text-foreground">{vault.isLive ? vault.rollTime : "Pending"}</span>
                             </div>
                         </Link>
                     ))}

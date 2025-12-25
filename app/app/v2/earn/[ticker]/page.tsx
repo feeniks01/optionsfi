@@ -119,8 +119,8 @@ export default function VaultDetailPage() {
     const formatTokenAmount = (amount: number) => (amount / Math.pow(10, decimals)).toFixed(2);
     // Calculate strike price: ~10% OTM, rounded to $2.50 increments
     const getRealisticStrike = (spot: number): number => {
-        // Calculate 10% OTM target
-        const otmTarget = spot * 1.10;
+        // Calculate OTM target based on vault config (e.g., 0.10 for 10%, 0.01 for 1%)
+        const otmTarget = spot * (1 + vaultMeta.strikeOffset);
         // Round to nearest $2.50 increment
         const increment = 2.5;
         return Math.round(otmTarget / increment) * increment;
@@ -255,7 +255,7 @@ export default function VaultDetailPage() {
             setTimeUntilEpochEnd(remaining);
         };
         updateTime();
-        const interval = setInterval(updateTime, 60000); // Update every minute
+        const interval = setInterval(updateTime, 1000); // Update every second for accuracy
         return () => clearInterval(interval);
     }, [getEpochEndTime]);
 
@@ -326,7 +326,7 @@ export default function VaultDetailPage() {
             <div className="flex items-center gap-2">
                 {[
                     { label: "Strike", value: `${Math.round(vaultMeta.strikeOffset * 100)}% OTM` },
-                    { label: "Premium", value: `${vaultMeta.premiumRange[0]} -${vaultMeta.premiumRange[1]}% `, highlight: true },
+                    { label: "Premium", value: `${vaultMeta.premiumRange[0]}-${vaultMeta.premiumRange[1]}%`, highlight: true },
                     { label: "Cap", value: `+ ${Math.round(vaultMeta.strikeOffset * 100)}% `, warn: true },
                 ].map((chip, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-2 h-10 rounded-full bg-gray-800/50 border border-gray-700/50 text-sm">
@@ -417,7 +417,7 @@ export default function VaultDetailPage() {
                                 <CheckCircle className="w-4 h-4 text-green-500" />
                                 <span className="text-gray-200">Oracle OK</span>
                             </div>
-                            <div className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - lg border text - sm ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60' : 'bg-red-500/10 border-red-500/30'} `}>
+                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60' : 'bg-red-500/10 border-red-500/30'}`}>
                                 {rfq.routerLoading ? (
                                     <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                                 ) : rfq.routerOnline ? (
@@ -564,10 +564,10 @@ export default function VaultDetailPage() {
 
                     {/* Vault State Banner - Manual Epoch Mode */}
                     {isLive && (
-                        <div className={`flex items - center gap - 2 p - 3 rounded - xl text - sm ${vaultState === "ACTIVE"
+                        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${vaultState === "ACTIVE"
                             ? "bg-green-500/10 border border-green-500/20"
                             : "bg-blue-500/10 border border-blue-500/20"
-                            } `}>
+                            }`}>
                             {vaultState === "ACTIVE" ? (
                                 <>
                                     <Play className="w-4 h-4 text-green-400" />
