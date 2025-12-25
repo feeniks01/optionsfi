@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Loader2, CheckCircle, AlertCircle, Radio, Server, Activity } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { RefreshCw, Loader2, CheckCircle, AlertCircle, Radio, Server, Terminal, Pause, Play } from "lucide-react";
 
 interface ServiceStatus {
     name: string;
@@ -11,31 +11,46 @@ interface ServiceStatus {
     lastChecked: Date | null;
 }
 
-interface RfqEvent {
+interface LogEvent {
     id: string;
-    type: "rfq_created" | "quote_received" | "rfq_filled" | "rfq_expired";
-    timestamp: Date;
+    type: string;
+    timestamp: string;
     data: Record<string, unknown>;
 }
+
+const EVENT_COLORS: Record<string, string> = {
+    maker_connected: "text-green-400",
+    maker_disconnected: "text-red-400",
+    rfq_created: "text-blue-400",
+    quote_received: "text-yellow-400",
+    rfq_filled: "text-purple-400",
+};
+
+const EVENT_LABELS: Record<string, string> = {
+    maker_connected: "MM CONNECTED",
+    maker_disconnected: "MM DISCONNECTED",
+    rfq_created: "RFQ CREATED",
+    quote_received: "QUOTE RECEIVED",
+    rfq_filled: "RFQ FILLED",
+};
 
 export default function LogsPage() {
     const [services, setServices] = useState<ServiceStatus[]>([
         { name: "RFQ Router", url: process.env.NEXT_PUBLIC_RFQ_ROUTER_URL || "", status: "loading", data: null, lastChecked: null },
         { name: "Keeper", url: process.env.NEXT_PUBLIC_KEEPER_URL || "", status: "loading", data: null, lastChecked: null },
     ]);
-    const [rfqEvents, setRfqEvents] = useState<RfqEvent[]>([]);
+    const [events, setEvents] = useState<LogEvent[]>([]);
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [lastEventTime, setLastEventTime] = useState(0);
+    const terminalRef = useRef<HTMLDivElement>(null);
 
     const checkService = useCallback(async (service: ServiceStatus): Promise<ServiceStatus> => {
         if (!service.url) {
             return { ...service, status: "offline", data: { error: "URL not configured" }, lastChecked: new Date() };
         }
         try {
-            const response = await fetch(`${service.url}/health`, {
-                method: "GET",
-                cache: "no-store",
-            });
+            const response = await fetch(`${service.url}/health`, { method: "GET", cache: "no-store" });
             if (response.ok) {
                 const data = await response.json();
                 return { ...service, status: "online", data, lastChecked: new Date() };
@@ -46,25 +61,70 @@ export default function LogsPage() {
         }
     }, []);
 
+    const fetchEvents = useCallback(async () => {
+        const routerUrl = process.env.NEXT_PUBLIC_RFQ_ROUTER_URL;
+        if (!routerUrl) return;
+
+        try {
+            const url = lastEventTime > 0
+                ? `${routerUrl}/events?since=${lastEventTime}`
+                : `${routerUrl}/events`;
+            const response = await fetch(url, { cache: "no-store" });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.events && data.events.length > 0) {
+                    setEvents(prev => {
+                        const newEvents = data.events.filter((e: LogEvent) => !prev.some(p => p.id === e.id));
+                        return [...prev, ...newEvents].slice(-100); // Keep last 100
+                    });
+                    setLastEventTime(data.serverTime);
+                    // Auto-scroll terminal
+                    setTimeout(() => {
+                        if (terminalRef.current) {
+                            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+                        }
+                    }, 50);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch events:", error);
+        }
+    }, [lastEventTime]);
+
     const refreshAll = useCallback(async () => {
         setIsRefreshing(true);
         const updated = await Promise.all(services.map(checkService));
         setServices(updated);
+        await fetchEvents();
         setIsRefreshing(false);
-    }, [services, checkService]);
+    }, [services, checkService, fetchEvents]);
 
     // Initial load and auto-refresh
     useEffect(() => {
         refreshAll();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
         if (autoRefresh) {
-            const interval = setInterval(refreshAll, 5000);
+            const interval = setInterval(() => {
+                fetchEvents();
+                // Refresh service status less frequently
+                if (Date.now() % 10000 < 2000) {
+                    Promise.all(services.map(checkService)).then(setServices);
+                }
+            }, 2000);
             return () => clearInterval(interval);
         }
-    }, [autoRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [autoRefresh, fetchEvents, services, checkService]);
 
-    const formatTime = (date: Date | null) => {
-        if (!date) return "—";
-        return date.toLocaleTimeString();
+    const formatTime = (timestamp: string) => {
+        return new Date(timestamp).toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            fractionalSecondDigits: 3
+        });
     };
 
     const StatusBadge = ({ status }: { status: "online" | "offline" | "loading" }) => {
@@ -78,23 +138,24 @@ export default function LogsPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Service Logs</h1>
-                    <p className="text-sm text-gray-400">Real-time status of RFQ infrastructure</p>
+                    <p className="text-sm text-gray-400">Real-time RFQ infrastructure monitoring</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={autoRefresh}
-                            onChange={(e) => setAutoRefresh(e.target.checked)}
-                            className="rounded"
-                        />
-                        Auto-refresh (5s)
-                    </label>
+                    <button
+                        onClick={() => setAutoRefresh(!autoRefresh)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${autoRefresh
+                                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                : "bg-gray-800 text-gray-400"
+                            }`}
+                    >
+                        {autoRefresh ? <Radio className="w-4 h-4 animate-pulse" /> : <Pause className="w-4 h-4" />}
+                        {autoRefresh ? "Live" : "Paused"}
+                    </button>
                     <button
                         onClick={refreshAll}
                         disabled={isRefreshing}
@@ -106,96 +167,75 @@ export default function LogsPage() {
                 </div>
             </div>
 
-            {/* Service Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Compact Service Status */}
+            <div className="flex gap-4">
                 {services.map((service) => (
-                    <div key={service.name} className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${service.status === "online" ? "bg-green-500/20" : "bg-gray-700"}`}>
-                                    <Server className={`w-5 h-5 ${service.status === "online" ? "text-green-400" : "text-gray-400"}`} />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-white">{service.name}</h3>
-                                    <p className="text-xs text-gray-500 font-mono truncate max-w-[200px]">{service.url || "Not configured"}</p>
-                                </div>
-                            </div>
-                            <StatusBadge status={service.status} />
-                        </div>
-
-                        {service.data && (
-                            <div className="bg-gray-900/50 rounded-lg p-3 font-mono text-xs overflow-x-auto">
-                                <pre className="text-gray-300 whitespace-pre-wrap">
-                                    {JSON.stringify(service.data, null, 2)}
-                                </pre>
-                            </div>
+                    <div key={service.name} className="flex items-center gap-3 bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2">
+                        <Server className={`w-4 h-4 ${service.status === "online" ? "text-green-400" : "text-gray-400"}`} />
+                        <span className="text-sm text-white">{service.name}</span>
+                        <StatusBadge status={service.status} />
+                        {service.status === "online" && service.data && (
+                            <span className="text-xs text-gray-500">
+                                {service.name === "RFQ Router" && `${(service.data as { connectedMakers?: number }).connectedMakers ?? 0} MMs`}
+                                {service.name === "Keeper" && `${(service.data as { runCount?: number }).runCount ?? 0} runs`}
+                            </span>
                         )}
-
-                        <div className="mt-3 text-xs text-gray-500">
-                            Last checked: {formatTime(service.lastChecked)}
-                        </div>
                     </div>
                 ))}
             </div>
 
-            {/* RFQ Activity Feed */}
-            <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
-                <div className="flex items-center gap-3 mb-4">
-                    <Activity className="w-5 h-5 text-blue-400" />
-                    <h3 className="font-semibold text-white">RFQ Activity</h3>
-                    {autoRefresh && (
-                        <span className="flex items-center gap-1.5 text-xs text-green-400">
-                            <Radio className="w-3 h-3 animate-pulse" />
-                            Live
-                        </span>
+            {/* Terminal Log */}
+            <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-700">
+                    <div className="flex items-center gap-2">
+                        <Terminal className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-300">Event Stream</span>
+                        {autoRefresh && (
+                            <span className="flex items-center gap-1 text-xs text-green-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                LIVE
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-xs text-gray-500">{events.length} events</span>
+                </div>
+
+                <div
+                    ref={terminalRef}
+                    className="h-[400px] overflow-y-auto font-mono text-xs p-4 space-y-1"
+                    style={{ backgroundColor: "#0d1117" }}
+                >
+                    {events.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <Terminal className="w-12 h-12 mb-3 opacity-30" />
+                            <p>Waiting for events...</p>
+                            <p className="text-xs mt-1">Events will stream here in real-time</p>
+                        </div>
+                    ) : (
+                        events.map((event) => (
+                            <div key={event.id} className="flex gap-3 hover:bg-gray-800/30 px-2 py-0.5 rounded">
+                                <span className="text-gray-500 flex-shrink-0">{formatTime(event.timestamp)}</span>
+                                <span className={`flex-shrink-0 w-32 ${EVENT_COLORS[event.type] || "text-gray-400"}`}>
+                                    [{EVENT_LABELS[event.type] || event.type.toUpperCase()}]
+                                </span>
+                                <span className="text-gray-300">
+                                    {Object.entries(event.data).map(([k, v]) => (
+                                        <span key={k} className="mr-3">
+                                            <span className="text-gray-500">{k}=</span>
+                                            <span className="text-white">{String(v)}</span>
+                                        </span>
+                                    ))}
+                                </span>
+                            </div>
+                        ))
                     )}
                 </div>
-
-                {services.find(s => s.name === "RFQ Router")?.data && (
-                    <div className="space-y-2">
-                        {/* Show connected makers count */}
-                        {(() => {
-                            const routerData = services.find(s => s.name === "RFQ Router")?.data as Record<string, unknown> | null;
-                            const connectedMakers = routerData?.connectedMakers as number | undefined;
-                            const activeRfqs = routerData?.activeRfqs as number | undefined;
-                            return (
-                                <div className="flex gap-6 text-sm">
-                                    <div>
-                                        <span className="text-gray-400">Connected MMs: </span>
-                                        <span className="text-white font-medium">{connectedMakers ?? 0}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-400">Active RFQs: </span>
-                                        <span className="text-white font-medium">{activeRfqs ?? 0}</span>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
-
-                {rfqEvents.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                        <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p>No recent RFQ activity</p>
-                        <p className="text-xs mt-1">Events will appear here when RFQs are created</p>
-                    </div>
-                )}
             </div>
 
-            {/* Environment Info */}
-            <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-400 mb-2">Configuration</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
-                    <div>
-                        <span className="text-gray-500">NEXT_PUBLIC_RFQ_ROUTER_URL: </span>
-                        <span className="text-gray-300">{process.env.NEXT_PUBLIC_RFQ_ROUTER_URL || "(not set)"}</span>
-                    </div>
-                    <div>
-                        <span className="text-gray-500">NEXT_PUBLIC_KEEPER_URL: </span>
-                        <span className="text-gray-300">{process.env.NEXT_PUBLIC_KEEPER_URL || "(not set)"}</span>
-                    </div>
-                </div>
+            {/* Config Footer */}
+            <div className="text-xs text-gray-600 font-mono">
+                RFQ Router: {process.env.NEXT_PUBLIC_RFQ_ROUTER_URL || "(not set)"} |
+                Keeper: {process.env.NEXT_PUBLIC_KEEPER_URL || "(not set)"}
             </div>
         </div>
     );

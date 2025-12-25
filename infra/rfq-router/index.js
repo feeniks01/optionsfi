@@ -34,6 +34,25 @@ app.use((req, res, next) => {
 const rfqs = new Map();
 const makers = new Map();
 
+// Event log buffer (circular, max 100 events)
+const eventLog = [];
+const MAX_EVENTS = 100;
+
+function logEvent(type, data) {
+    const event = {
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        timestamp: new Date().toISOString(),
+        data,
+    };
+    eventLog.push(event);
+    if (eventLog.length > MAX_EVENTS) {
+        eventLog.shift();
+    }
+    console.log(`[${event.type}]`, JSON.stringify(data));
+    return event;
+}
+
 // Create HTTP server
 const server = http.createServer(app);
 
@@ -44,6 +63,7 @@ wss.on("connection", (ws, req) => {
     const makerId = req.url?.split("makerId=")[1] || `maker-${Date.now()}`;
     console.log(`Maker connected: ${makerId}`);
     makers.set(makerId, ws);
+    logEvent("maker_connected", { makerId, totalMakers: makers.size });
 
     ws.on("message", (data) => {
         try {
@@ -57,6 +77,7 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => {
         console.log(`Maker disconnected: ${makerId}`);
         makers.delete(makerId);
+        logEvent("maker_disconnected", { makerId, totalMakers: makers.size });
     });
 
     ws.on("error", (error) => {
@@ -73,7 +94,7 @@ function handleMakerMessage(makerId, msg) {
                 premium: msg.premium,
                 timestamp: Date.now(),
             });
-            console.log(`Quote received for ${msg.rfqId} from ${makerId}: ${msg.premium / 1e6} USDC`);
+            logEvent("quote_received", { rfqId: msg.rfqId, maker: makerId, premium: msg.premium / 1e6 });
         }
     }
 }
@@ -109,7 +130,7 @@ app.post("/rfq", (req, res) => {
     };
 
     rfqs.set(rfqId, rfq);
-    console.log(`RFQ created: ${rfqId}`, { underlying, strike, size: size / 1e6 });
+    logEvent("rfq_created", { rfqId, underlying, optionType, strike, size: size / 1e6, makerCount: makers.size });
 
     // Broadcast to makers
     broadcastToMakers({
@@ -163,7 +184,7 @@ app.post("/rfq/:rfqId/fill", (req, res) => {
         filledAt: Date.now(),
     };
 
-    console.log(`RFQ ${rfq.rfqId} filled by ${bestQuote.maker} at ${bestQuote.premium / 1e6} USDC`);
+    logEvent("rfq_filled", { rfqId: rfq.rfqId, maker: bestQuote.maker, premium: bestQuote.premium / 1e6 });
 
     // Notify winning maker
     const makerWs = makers.get(bestQuote.maker);
@@ -186,6 +207,15 @@ app.get("/health", (req, res) => {
         activeRfqs: rfqs.size,
         uptime: process.uptime(),
     });
+});
+
+// Events endpoint for real-time logs
+app.get("/events", (req, res) => {
+    const since = req.query.since ? parseInt(req.query.since) : 0;
+    const filtered = since > 0
+        ? eventLog.filter(e => new Date(e.timestamp).getTime() > since)
+        : eventLog.slice(-50); // Last 50 events
+    res.json({ events: filtered, serverTime: Date.now() });
 });
 
 // Root endpoint for quick status
