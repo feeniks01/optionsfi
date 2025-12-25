@@ -504,19 +504,18 @@ async function checkVaultLifecycle(): Promise<void> {
 
             const isLive = vault.epochNotionalExposed > BigInt(0);
 
-            // Check if epoch has expired (add small 10s buffer)
-            if (now > lastRoll + minDuration + 10) {
-                if (isLive) {
-                    // Settlement phase (Vault has expired exposure -> needs to settle)
-                    logger.info(`Lifecycle: Settlement triggered for ${assetId}`);
-                    await runSettlement(assetId);
-                } else {
-                    // Roll phase (Vault is settled -> needs new exposure)
-                    // Note: This auto-rolls immediately after settlement. 
-                    // If you want to wait for specific windows (e.g. Friday), add logic here.
-                    logger.info(`Lifecycle: Roll triggered for ${assetId}`);
-                    await runEpochRoll(assetId);
-                }
+            // 1. Settlement Check: If active and expired -> Settle
+            if (isLive && now > lastRoll + minDuration + 10) {
+                logger.info(`Lifecycle: Settlement triggered for ${assetId}`);
+                await runSettlement(assetId);
+            }
+            // 2. Roll Check: If not active (idle) -> Roll immediately
+            // This ensures we don't wait for a full duration of "empty" time after settlement
+            else if (!isLive) {
+                // If the vault is idle, we should try to roll to keep capital utilized.
+                // The 'runEpochRoll' function has internal checks for capacity/errors.
+                logger.info(`Lifecycle: Roll triggered for ${assetId} (Idle State)`);
+                await runEpochRoll(assetId);
             } else {
                 // Vault is active and not expired - do nothing
             }
