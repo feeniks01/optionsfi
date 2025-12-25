@@ -54,9 +54,7 @@ function loadWallet() {
             let secretKey;
 
             // 1. Try JSON Array first (most common for Solana wallets)
-            // Check for bracket anywhere since Railway might add whitespace
             if (rawKey.includes("[")) {
-                // Extract the JSON array portion
                 const startIdx = rawKey.indexOf("[");
                 const endIdx = rawKey.lastIndexOf("]") + 1;
                 const jsonPart = rawKey.slice(startIdx, endIdx);
@@ -69,10 +67,21 @@ function loadWallet() {
                 secretKey = bs58.decode(rawKey);
                 console.log(`Decoded as Base58: ${secretKey.length} bytes`);
             }
-            // 3. Fallback to Base64
+            // 3. Try Base64 (might be Base64-encoded JSON!)
             else {
-                secretKey = Uint8Array.from(Buffer.from(rawKey, "base64"));
-                console.log(`Decoded as Base64: ${secretKey.length} bytes`);
+                const decoded = Buffer.from(rawKey, "base64").toString("utf-8");
+                console.log(`Base64 decoded to: "${decoded.substring(0, 30)}..."`);
+
+                // Check if the Base64 decoded to a JSON array
+                if (decoded.startsWith("[")) {
+                    const parsed = JSON.parse(decoded);
+                    secretKey = Uint8Array.from(parsed);
+                    console.log(`Parsed Base64->JSON: ${secretKey.length} bytes`);
+                } else {
+                    // Raw binary Base64
+                    secretKey = Uint8Array.from(Buffer.from(rawKey, "base64"));
+                    console.log(`Decoded as Base64 binary: ${secretKey.length} bytes`);
+                }
             }
 
             if (secretKey.length !== 64) {
