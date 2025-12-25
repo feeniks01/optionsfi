@@ -353,7 +353,10 @@ export default function VaultDetailPage() {
                                 </span>
                             </p>
                             <p className="text-2xl font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                            <p className="text-xs text-blue-400 mt-0.5">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                            <div className="flex items-center justify-between mt-0.5">
+                                <p className="text-xs text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                                <p className="text-xs text-gray-500">{utilization.toFixed(0)}% utilized</p>
+                            </div>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
                             <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
@@ -372,16 +375,18 @@ export default function VaultDetailPage() {
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
                             <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                Utilization
+                                USDC Earned
                                 <span className="relative group">
                                     <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
                                     <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        % of vault assets deployed in options positions
+                                        Accumulated USDC premium from covered calls
                                     </span>
                                 </span>
                             </p>
-                            <p className="text-2xl font-bold text-white">{utilization.toFixed(1)}%</p>
-                            <p className="text-xs text-gray-500 mt-0.5">of {utilizationCap}% cap</p>
+                            <p className="text-2xl font-bold text-emerald-400">
+                                ${vaultData?.premiumBalanceUsdc ? (Number(vaultData.premiumBalanceUsdc) / 1e6).toFixed(2) : "0.00"}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">total premium</p>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
                             <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
