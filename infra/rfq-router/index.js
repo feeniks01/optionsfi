@@ -80,11 +80,14 @@ function validateMakerAuth(req) {
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws, req) => {
+    // Debug: Log raw request info
+    console.log(`WS Connection - URL: ${req.url}, Host: ${req.headers.host}`);
+
     // Authenticate market maker
     const auth = validateMakerAuth(req);
     if (!auth.valid) {
         console.log(`Maker connection rejected: ${auth.error}`);
-        logEvent("maker_rejected", { reason: auth.error, ip: req.socket.remoteAddress });
+        logEvent("maker_rejected", { reason: auth.error, ip: req.socket.remoteAddress, url: req.url });
         ws.close(4001, auth.error);
         return;
     }
