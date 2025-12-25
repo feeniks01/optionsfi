@@ -267,6 +267,8 @@ export async function buildDepositTransaction(
     }
 
     // Build deposit instruction
+    const [shareEscrowPda] = deriveShareEscrowPda(vaultPda);
+
     const depositIx = await program.methods
         .deposit(new BN(amount))
         .accounts({
@@ -275,6 +277,7 @@ export async function buildDepositTransaction(
             vaultTokenAccount: vaultTokenAccount,
             userTokenAccount: userTokenAccount,
             userShareAccount: userShareAccount,
+            shareEscrow: shareEscrowPda,
             user: wallet.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID,
         })
