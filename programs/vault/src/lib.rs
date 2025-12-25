@@ -583,6 +583,49 @@ pub mod vault {
         vault.utilization_cap_bps = cap_bps;
         Ok(())
     }
+
+    /// Close a vault and recover rent (authority only)
+    /// Vault must be empty (no assets, shares, or pending withdrawals)
+    pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
+        let vault = &ctx.accounts.vault;
+        
+        // Safety checks - vault must be completely empty
+        require!(vault.total_assets == 0, VaultError::VaultNotEmpty);
+        require!(vault.total_shares == 0, VaultError::VaultNotEmpty);
+        require!(vault.pending_withdrawals == 0, VaultError::VaultNotEmpty);
+        require!(vault.epoch_notional_exposed == 0, VaultError::VaultNotEmpty);
+        
+        // Account will be closed automatically by Anchor's close constraint
+        Ok(())
+    }
+
+    /// Force close a vault account (bypasses deserialization)
+    /// USE WITH CAUTION: Only for recovering from incompatible account structures
+    /// This does NOT check if the vault is empty - authority takes full responsibility
+    pub fn force_close_vault(ctx: Context<ForceCloseVault>, asset_id: String) -> Result<()> {
+        let vault_account = &ctx.accounts.vault;
+        let authority = &ctx.accounts.authority;
+
+        // Verify the PDA matches what we expect
+        let (expected_pda, _bump) = Pubkey::find_program_address(
+            &[b"vault", asset_id.as_bytes()],
+            ctx.program_id,
+        );
+        require!(vault_account.key() == expected_pda, VaultError::InvalidVaultPda);
+
+        // Transfer all lamports to authority
+        let vault_lamports = vault_account.lamports();
+        **vault_account.try_borrow_mut_lamports()? = 0;
+        **authority.try_borrow_mut_lamports()? = authority.lamports()
+            .checked_add(vault_lamports)
+            .ok_or(VaultError::Overflow)?;
+
+        // Zero out the account data
+        vault_account.try_borrow_mut_data()?.fill(0);
+
+        msg!("Force closed vault {} - returned {} lamports", asset_id, vault_lamports);
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -991,6 +1034,34 @@ pub struct SetParam<'info> {
 }
 
 #[derive(Accounts)]
+pub struct CloseVault<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.asset_id.as_bytes()],
+        bump = vault.bump,
+        has_one = authority,
+        close = authority
+    )]
+    pub vault: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+/// Force close context - uses UncheckedAccount to bypass deserialization
+/// SECURITY: Only the program upgrade authority should call this
+#[derive(Accounts)]
+#[instruction(asset_id: String)]
+pub struct ForceCloseVault<'info> {
+    /// CHECK: We verify the PDA matches in the instruction
+    #[account(mut)]
+    pub vault: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct CreateShareMetadata<'info> {
     #[account(
         seeds = [b"vault", vault.asset_id.as_bytes()],
@@ -1130,4 +1201,8 @@ pub enum VaultError {
     InsufficientVaultBalance,
     #[msg("Vault is paused")]
     VaultPaused,
+    #[msg("Vault must be empty to close")]
+    VaultNotEmpty,
+    #[msg("Invalid vault PDA")]
+    InvalidVaultPda,
 }

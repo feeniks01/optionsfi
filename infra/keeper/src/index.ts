@@ -32,7 +32,7 @@ const config = {
     rpcUrl: process.env.RPC_URL || "https://api.devnet.solana.com",
     walletPath: process.env.WALLET_PATH || process.env.ANCHOR_WALLET || "~/.config/solana/id.json",
     // Support multiple vaults via comma-separated ASSET_IDS
-    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "DemoNVDAx5,NVDAx3").split(",").map(s => s.trim()),
+    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "DemoNVDAx6,NVDAx3").split(",").map(s => s.trim()),
     ticker: process.env.TICKER || "NVDA", // Yahoo Finance ticker for volatility
     cronSchedule: process.env.CRON_SCHEDULE || "0 */6 * * *", // Every 6 hours
     epochDurationDays: parseInt(process.env.EPOCH_DURATION_DAYS || "7"),
