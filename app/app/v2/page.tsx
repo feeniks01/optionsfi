@@ -222,7 +222,7 @@ export default function V2EarnDashboard() {
             </section>
 
             {/* Latest Updates */}
-            <section className="space-y-4">
+            {/* <section className="space-y-4">
                 <h2 className="text-xl font-semibold text-foreground">Latest Updates</h2>
                 <div className="rounded-xl border border-border bg-secondary/30 divide-y divide-border">
                     <div className="p-4 flex items-center gap-3">
@@ -241,7 +241,7 @@ export default function V2EarnDashboard() {
                         <span className="ml-auto text-xs text-muted-foreground">10m ago</span>
                     </div>
                 </div>
-            </section>
+            </section> */}
         </div>
     );
 }

@@ -57,12 +57,40 @@ function logEvent(type, data) {
 // Create HTTP server
 const server = http.createServer(app);
 
+// Market maker authentication
+// API keys for authorized market makers (in production, store in DB/env)
+const MM_API_KEYS = new Set(
+    (process.env.MM_API_KEYS || "demo-mm-key-1,demo-mm-key-2").split(",").map(k => k.trim())
+);
+
+function validateMakerAuth(req) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const apiKey = url.searchParams.get("apiKey");
+
+    if (!apiKey) {
+        return { valid: false, error: "Missing apiKey" };
+    }
+    if (!MM_API_KEYS.has(apiKey)) {
+        return { valid: false, error: "Invalid apiKey" };
+    }
+    return { valid: true, makerId: url.searchParams.get("makerId") || `maker-${Date.now()}` };
+}
+
 // WebSocket server attached to same HTTP server
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws, req) => {
-    const makerId = req.url?.split("makerId=")[1] || `maker-${Date.now()}`;
-    console.log(`Maker connected: ${makerId}`);
+    // Authenticate market maker
+    const auth = validateMakerAuth(req);
+    if (!auth.valid) {
+        console.log(`Maker connection rejected: ${auth.error}`);
+        logEvent("maker_rejected", { reason: auth.error, ip: req.socket.remoteAddress });
+        ws.close(4001, auth.error);
+        return;
+    }
+
+    const makerId = auth.makerId;
+    console.log(`Maker authenticated: ${makerId}`);
     makers.set(makerId, ws);
     logEvent("maker_connected", { makerId, totalMakers: makers.size });
 

@@ -13,6 +13,7 @@ const path = require("path");
 
 const ROUTER_WS_URL = process.env.ROUTER_WS_URL || "ws://localhost:3006";
 const MAKER_ID = process.env.MAKER_ID || "mock-mm-usdc";
+const MM_API_KEY = process.env.MM_API_KEY || "demo-mm-key-1"; // Must match RFQ router's MM_API_KEYS
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 
 // USDC Mint on devnet (Mock USDC)
@@ -90,7 +91,7 @@ async function init() {
 function connect() {
     console.log(`\nConnecting to RFQ Router as ${MAKER_ID}...`);
 
-    ws = new WebSocket(`${ROUTER_WS_URL}?makerId=${MAKER_ID}`);
+    ws = new WebSocket(`${ROUTER_WS_URL}?makerId=${MAKER_ID}&apiKey=${MM_API_KEY}`);
 
     ws.on("open", () => {
         console.log("✓ Connected to RFQ Router");
