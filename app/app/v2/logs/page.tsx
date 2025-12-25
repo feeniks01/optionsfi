@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { RefreshCw, Loader2, CheckCircle, AlertCircle, Radio, Server, Terminal, Pause, Play } from "lucide-react";
+import { RefreshCw, Loader2, CheckCircle, AlertCircle, Radio, Server, Terminal, Pause } from "lucide-react";
 
 interface ServiceStatus {
     name: string;
@@ -25,6 +25,10 @@ const EVENT_COLORS: Record<string, string> = {
     rfq_created: "text-blue-400",
     quote_received: "text-yellow-400",
     rfq_filled: "text-purple-400",
+    epoch_roll_triggered: "text-orange-400",
+    epoch_roll_completed: "text-orange-400",
+    settlement_triggered: "text-cyan-400",
+    settlement_completed: "text-cyan-400",
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -43,6 +47,13 @@ const SOURCE_COLORS: Record<string, string> = {
     "rfq-router": "text-blue-500",
     "keeper": "text-orange-400",
 };
+
+function formatUptime(seconds: number | undefined): string {
+    if (!seconds) return "—";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m`;
+}
 
 export default function LogsPage() {
     const [services, setServices] = useState<ServiceStatus[]>([
@@ -118,7 +129,6 @@ export default function LogsPage() {
         setIsRefreshing(false);
     }, [services, checkService, fetchEvents]);
 
-    // Initial load and auto-refresh
     useEffect(() => {
         refreshAll();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,7 +137,6 @@ export default function LogsPage() {
         if (autoRefresh) {
             const interval = setInterval(() => {
                 fetchEvents();
-                // Refresh service status less frequently
                 if (Date.now() % 10000 < 2000) {
                     Promise.all(services.map(checkService)).then(setServices);
                 }
@@ -142,7 +151,6 @@ export default function LogsPage() {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
-            fractionalSecondDigits: 3
         });
     };
 
@@ -168,8 +176,8 @@ export default function LogsPage() {
                     <button
                         onClick={() => setAutoRefresh(!autoRefresh)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${autoRefresh
-                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                            : "bg-gray-800 text-gray-400"
+                                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                : "bg-gray-800 text-gray-400"
                             }`}
                     >
                         {autoRefresh ? <Radio className="w-4 h-4 animate-pulse" /> : <Pause className="w-4 h-4" />}
@@ -186,21 +194,86 @@ export default function LogsPage() {
                 </div>
             </div>
 
-            {/* Compact Service Status */}
-            <div className="flex gap-4">
-                {services.map((service) => (
-                    <div key={service.name} className="flex items-center gap-3 bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2">
-                        <Server className={`w-4 h-4 ${service.status === "online" ? "text-green-400" : "text-gray-400"}`} />
-                        <span className="text-sm text-white">{service.name}</span>
-                        <StatusBadge status={service.status} />
-                        {service.status === "online" && service.data && (
-                            <span className="text-xs text-gray-500">
-                                {service.name === "RFQ Router" && `${(service.data as { connectedMakers?: number }).connectedMakers ?? 0} MMs`}
-                                {service.name === "Keeper" && `${(service.data as { runCount?: number }).runCount ?? 0} runs`}
-                            </span>
-                        )}
-                    </div>
-                ))}
+            {/* Service Status Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {services.map((service) => {
+                    const data = service.data as Record<string, unknown> | null;
+                    return (
+                        <div key={service.name} className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Server className={`w-5 h-5 ${service.status === "online" ? "text-green-400" : "text-gray-400"}`} />
+                                    <span className="font-medium text-white">{service.name}</span>
+                                </div>
+                                <StatusBadge status={service.status} />
+                            </div>
+
+                            {service.status === "online" && data && (
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    {service.name === "RFQ Router" && (
+                                        <>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Connected MMs</div>
+                                                <div className="text-white font-mono text-lg">{String(data.connectedMakers ?? 0)}</div>
+                                            </div>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Active RFQs</div>
+                                                <div className="text-white font-mono text-lg">{String(data.activeRfqs ?? 0)}</div>
+                                            </div>
+                                            <div className="bg-gray-900/50 rounded-lg p-2 col-span-2">
+                                                <div className="text-gray-500 text-xs">Uptime</div>
+                                                <div className="text-white font-mono">{formatUptime(data.uptime as number)}</div>
+                                            </div>
+                                        </>
+                                    )}
+                                    {service.name === "Keeper" && (
+                                        <>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Run Count</div>
+                                                <div className="text-white font-mono text-lg">{String(data.runCount ?? 0)}</div>
+                                            </div>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Errors</div>
+                                                <div className={`font-mono text-lg ${(data.errorCount as number) > 0 ? "text-red-400" : "text-green-400"}`}>
+                                                    {String(data.errorCount ?? 0)}
+                                                </div>
+                                            </div>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Asset</div>
+                                                <div className="text-white font-mono">{(data.config as Record<string, string>)?.assetId ?? "—"}</div>
+                                            </div>
+                                            <div className="bg-gray-900/50 rounded-lg p-2">
+                                                <div className="text-gray-500 text-xs">Status</div>
+                                                <div className={`font-mono ${data.isRunning ? "text-yellow-400" : "text-gray-400"}`}>
+                                                    {data.isRunning ? "Running" : "Idle"}
+                                                </div>
+                                            </div>
+                                            {data.lastRunTime && (
+                                                <div className="bg-gray-900/50 rounded-lg p-2 col-span-2">
+                                                    <div className="text-gray-500 text-xs">Last Run</div>
+                                                    <div className="text-white font-mono text-sm">
+                                                        {new Date(data.lastRunTime as number).toLocaleString()}
+                                                        {data.lastRunSuccess !== null && (
+                                                            <span className={`ml-2 ${data.lastRunSuccess ? "text-green-400" : "text-red-400"}`}>
+                                                                ({data.lastRunSuccess ? "✓" : "✗"})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {service.status === "offline" && data && (
+                                <div className="text-red-400 text-xs font-mono bg-red-500/10 rounded p-2">
+                                    {String(data.error) || "Connection failed"}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Terminal Log */}
@@ -221,7 +294,7 @@ export default function LogsPage() {
 
                 <div
                     ref={terminalRef}
-                    className="h-[400px] overflow-y-auto font-mono text-xs p-4 space-y-1"
+                    className="h-[350px] overflow-y-auto font-mono text-xs p-4 space-y-1"
                     style={{ backgroundColor: "#0d1117" }}
                 >
                     {events.length === 0 ? (
