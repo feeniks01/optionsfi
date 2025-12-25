@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useState, useEffect } from "react";
-import { RefreshCw, Info, CheckCircle, Clock, AlertCircle, Zap, Loader2, ExternalLink, Wallet, Radio, Play, Square } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { RefreshCw, Info, CheckCircle, Clock, AlertCircle, Zap, Loader2, ExternalLink, Wallet, Radio, Play, Square, ArrowRight, Shield, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useVault } from "../../../../hooks/useVault";
 import { useRfq } from "../../../../hooks/useRfq";
 import { getVaultTheme, type VaultTheme } from "../../../../themes/vaultThemes";
@@ -126,7 +126,7 @@ export default function VaultDetailPage() {
         return Math.round(otmTarget / increment) * increment;
     };
     const strikePrice = underlyingPrice ? getRealisticStrike(underlyingPrice) : null;
-    const formatPrice = (p: number | null) => p ? `$${p.toFixed(2)}` : "—";
+    const formatPrice = (p: number | null) => p ? `$${p.toFixed(2)} ` : "—";
     const depositNum = parseFloat(depositAmount) || 0;
     const withdrawNum = parseFloat(withdrawAmount) || 0;
     const estPremiumUsd = underlyingPrice && depositNum && vaultMeta ? (depositNum * underlyingPrice * vaultMeta.premiumRange[0] / 100) : null;
@@ -209,7 +209,7 @@ export default function VaultDetailPage() {
 
     // Epoch timing - calculate based on a fixed weekly schedule
     // Epochs run Sunday 00:00 UTC to Saturday 23:59 UTC
-    const getEpochEndTime = () => {
+    const getEpochEndTime = useCallback(() => {
         if (vaultData) {
             // Use on-chain timestamps if available
             const lastRoll = vaultData.lastRollTimestamp;
@@ -226,6 +226,12 @@ export default function VaultDetailPage() {
             }
         }
 
+        // For demo vaults, use a short 3-minute fallback if no on-chain data
+        if (vaultMeta?.isDemo) {
+            const now = Math.floor(Date.now() / 1000);
+            return now + (180 - (now % 180)); // Next 3-minute mark
+        }
+
         // Only fallback to schedule if we have no on-chain data
         const now = new Date();
         const utcHours = now.getUTCHours();
@@ -238,7 +244,7 @@ export default function VaultDetailPage() {
         nextRollDate.setUTCHours(nextMark, 0, 0, 0);
 
         return Math.floor(nextRollDate.getTime() / 1000);
-    };
+    }, [vaultData, vaultMeta, vaultMeta?.isDemo]);
 
     const [timeUntilEpochEnd, setTimeUntilEpochEnd] = useState(0);
 
@@ -251,7 +257,7 @@ export default function VaultDetailPage() {
         updateTime();
         const interval = setInterval(updateTime, 60000); // Update every minute
         return () => clearInterval(interval);
-    }, []);
+    }, [getEpochEndTime]);
 
     const minutesUntilEnd = Math.floor(timeUntilEpochEnd / 60);
     const hoursUntilEnd = Math.floor(minutesUntilEnd / 60);
@@ -260,14 +266,14 @@ export default function VaultDetailPage() {
     const remainingHours = hoursUntilEnd % 24;
 
     const timeString = daysUntilEnd > 0
-        ? `${daysUntilEnd}d ${remainingHours}h`
+        ? `${daysUntilEnd}d ${remainingHours} h`
         : hoursUntilEnd > 0
-            ? `${hoursUntilEnd}h ${remainingMinutes}m`
-            : `${remainingMinutes}m`;
+            ? `${hoursUntilEnd}h ${remainingMinutes} m`
+            : `${remainingMinutes} m`;
 
     // Themed background gradient
     const backgroundStyle = {
-        background: `linear-gradient(135deg, #0B0F17 0%, ${theme.accentSoft} 50%, #0B0F17 100%)`,
+        background: `linear - gradient(135deg, #0B0F17 0 %, ${theme.accentSoft} 50 %, #0B0F17 100 %)`,
         backgroundSize: '200% 200%',
     };
 
@@ -320,8 +326,8 @@ export default function VaultDetailPage() {
             <div className="flex items-center gap-2">
                 {[
                     { label: "Strike", value: `${Math.round(vaultMeta.strikeOffset * 100)}% OTM` },
-                    { label: "Premium", value: `${vaultMeta.premiumRange[0]}-${vaultMeta.premiumRange[1]}%`, highlight: true },
-                    { label: "Cap", value: `+${Math.round(vaultMeta.strikeOffset * 100)}%`, warn: true },
+                    { label: "Premium", value: `${vaultMeta.premiumRange[0]} -${vaultMeta.premiumRange[1]}% `, highlight: true },
+                    { label: "Cap", value: `+ ${Math.round(vaultMeta.strikeOffset * 100)}% `, warn: true },
                 ].map((chip, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-2 h-10 rounded-full bg-gray-800/50 border border-gray-700/50 text-sm">
                         <span className="text-gray-400">{chip.label}</span>
@@ -387,7 +393,7 @@ export default function VaultDetailPage() {
                                 </span>
                             </p>
                             <p className="text-2xl font-bold text-green-400">
-                                {vaultData?.sharePrice ? `+${((vaultData.sharePrice - 1.0) * 100).toFixed(2)}%` : "0.00%"}
+                                {vaultData?.sharePrice ? `+ ${((vaultData.sharePrice - 1.0) * 100).toFixed(2)}% ` : "0.00%"}
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5">since inception</p>
                         </div>
@@ -411,7 +417,7 @@ export default function VaultDetailPage() {
                                 <CheckCircle className="w-4 h-4 text-green-500" />
                                 <span className="text-gray-200">Oracle OK</span>
                             </div>
-                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60' : 'bg-red-500/10 border-red-500/30'}`}>
+                            <div className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - lg border text - sm ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60' : 'bg-red-500/10 border-red-500/30'} `}>
                                 {rfq.routerLoading ? (
                                     <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                                 ) : rfq.routerOnline ? (
@@ -468,13 +474,13 @@ export default function VaultDetailPage() {
                                     className="h-full rounded-full transition-all duration-500"
                                     style={{
                                         backgroundColor: theme.accent,
-                                        width: `${Math.min(utilization, 100)}%`
+                                        width: `${Math.min(utilization, 100)}% `
                                     }}
                                 />
                                 {/* Target marker */}
                                 <div
                                     className="absolute top-0 bottom-0 border-r-2 border-dashed border-white/20"
-                                    style={{ left: `${utilizationCap}%` }}
+                                    style={{ left: `${utilizationCap}% ` }}
                                 />
                             </div>
                         </div>
@@ -558,10 +564,10 @@ export default function VaultDetailPage() {
 
                     {/* Vault State Banner - Manual Epoch Mode */}
                     {isLive && (
-                        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${vaultState === "ACTIVE"
+                        <div className={`flex items - center gap - 2 p - 3 rounded - xl text - sm ${vaultState === "ACTIVE"
                             ? "bg-green-500/10 border border-green-500/20"
                             : "bg-blue-500/10 border border-blue-500/20"
-                            }`}>
+                            } `}>
                             {vaultState === "ACTIVE" ? (
                                 <>
                                     <Play className="w-4 h-4 text-green-400" />
@@ -574,10 +580,10 @@ export default function VaultDetailPage() {
                                     <Zap className="w-4 h-4 text-blue-400" />
                                     <span className="text-blue-300">
                                         {tvlTokens > 0
-                                            ? vaultMeta?.isDemo
-                                                ? <><strong>Awaiting Manual Roll</strong> — Epoch #{epoch} · Ready for execution</>
+                                            ? timeUntilEpochEnd === 0
+                                                ? <><strong className="text-green-400">{vaultMeta.isDemo ? "Preparing Auto-Roll" : "Awaiting Manual Roll"}</strong> — Epoch #{epoch} · Ready for execution</>
                                                 : <><strong>Auto-rolling</strong> — Epoch #{epoch} · Keeper will roll at next schedule</>
-                                            : `Live on Devnet. Deposit to start Epoch #${epoch}.`
+                                            : `Live on Devnet.Deposit to start Epoch #${epoch}.`
                                         }
                                     </span>
                                 </>
@@ -597,21 +603,23 @@ export default function VaultDetailPage() {
                                 rel="noopener noreferrer"
                                 className="ml-auto text-green-400 hover:text-green-300 flex items-center gap-1"
                             >
-                                View <ExternalLink className="w-3 h-3" />
-                            </a>
-                        </div>
+                                View < ExternalLink className="w-3 h-3" />
+                            </a >
+                        </div >
                     )}
 
-                    {txError && (
-                        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm">
-                            <AlertCircle className="w-4 h-4 text-red-400" />
-                            <span className="text-red-300">{txError}</span>
-                        </div>
-                    )}
-                </div>
+                    {
+                        txError && (
+                            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm">
+                                <AlertCircle className="w-4 h-4 text-red-400" />
+                                <span className="text-red-300">{txError}</span>
+                            </div>
+                        )
+                    }
+                </div >
 
                 {/* Deposit Panel */}
-                <div className="lg:col-span-1">
+                < div className="lg:col-span-1" >
                     <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 sticky top-4">
                         {/* Panel Header */}
                         <div className="flex items-center justify-between mb-3">
@@ -834,8 +842,8 @@ export default function VaultDetailPage() {
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 }

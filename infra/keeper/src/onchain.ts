@@ -287,6 +287,23 @@ export class OnChainClient {
     get publicKey(): PublicKey {
         return this.wallet.publicKey;
     }
+
+    /**
+     * Set minimum epoch duration for a vault
+     */
+    async setMinEpochDuration(assetId: string, duration: number): Promise<string> {
+        if (!this.program) throw new Error("Client not initialized");
+
+        const [vaultPda] = deriveVaultPda(assetId);
+
+        return await this.program.methods
+            .setMinEpochDuration(new anchor.BN(duration))
+            .accounts({
+                vault: vaultPda,
+                authority: this.wallet.publicKey,
+            })
+            .rpc();
+    }
 }
 
 // ============================================================================

@@ -287,7 +287,10 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         // Step 3: Calculate strike price (OTM by strike delta)
         logger.info("Step 3: Calculating strike price...");
         const spotPrice = oraclePrice.price;
-        const strikeDelta = config.strikeDeltaBps / 10000;
+        // For demo vaults, use a tighter strike (1% OTM) to be more realistic for short durations
+        const strikeDelta = assetId.toLowerCase().includes("demo")
+            ? 0.01
+            : (config.strikeDeltaBps / 10000);
         const strikePrice = spotPrice * (1 + strikeDelta);
 
         logger.info("Strike calculated", {
@@ -313,10 +316,11 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
 
         // Step 5: Calculate Black-Scholes premium
         logger.info("Step 5: Calculating Black-Scholes premium...");
+        const daysToExpiry = Number(vaultData.minEpochDuration) / (24 * 60 * 60);
         const premiumPerToken = calculateCoveredCallPremium({
             spot: spotPrice,
             strikePercent: strikePrice / spotPrice,
-            daysToExpiry: config.epochDurationDays,
+            daysToExpiry: daysToExpiry,
             volatility: volatility,
             riskFreeRate: config.riskFreeRate,
         });
@@ -327,7 +331,7 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
             premiumPerToken: premiumPerToken.toFixed(4),
             premiumBps,
             volatility: `${(volatility * 100).toFixed(1)}%`,
-            daysToExpiry: config.epochDurationDays,
+            daysToExpiry: daysToExpiry.toFixed(6),
         });
 
         // Step 6: Calculate notional to expose (use available capacity)
@@ -349,7 +353,7 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
                 underlying: assetId,
                 optionType: "CALL",
                 strike: strikePrice,
-                expiry: Date.now() + config.epochDurationDays * 24 * 60 * 60 * 1000,
+                expiry: Date.now() + Number(vaultData.minEpochDuration) * 1000,
                 size: notionalTokens,
                 premiumFloor: Math.max(1, Math.floor(totalPremium * 0.8 * 1e6)), // 80% of BS price minimum in USDC base units
             }, { timeout: 15000 });
@@ -463,6 +467,43 @@ async function runEpochRoll(targetAssetId?: string): Promise<boolean> {
     state.lastRunSuccess = allSuccess;
 
     return allSuccess;
+}
+
+/**
+ * High-frequency check for automated demo rolls
+ */
+async function checkAutomatedRolls(): Promise<void> {
+    if (state.isRunning) return;
+
+    for (const assetId of config.assetIds) {
+        // Only automate demo vaults for now
+        if (!assetId.toLowerCase().includes("demo")) continue;
+
+        try {
+            const vault = await state.onchainClient?.fetchVault(assetId);
+            if (!vault) continue;
+
+            const now = Math.floor(Date.now() / 1000);
+            const lastRoll = Number(vault.lastRollTimestamp);
+            const minDuration = Number(vault.minEpochDuration);
+            const isLive = vault.epochNotionalExposed > BigInt(0);
+
+            // If time since last roll exceeded duration + small buffer
+            if (now > lastRoll + minDuration + 10) {
+                if (isLive) {
+                    // Settlement phase
+                    logger.info(`Automated settlement triggered for ${assetId}`);
+                    await runSettlement(assetId);
+                } else {
+                    // Roll phase
+                    logger.info(`Automated roll triggered for ${assetId}`);
+                    await runEpochRoll(assetId);
+                }
+            }
+        } catch (error: any) {
+            logger.error(`Automated check failed for ${assetId}`, { error: error.message });
+        }
+    }
 }
 
 // ============================================================================
@@ -598,6 +639,23 @@ async function initialize(): Promise<void> {
     state.onchainClient = new OnChainClient(state.connection, state.wallet);
     await state.onchainClient.initialize();
     logger.info("On-chain client initialized");
+
+    // Ensure Demo vault has short duration for testing (3 mins)
+    for (const assetId of config.assetIds) {
+        if (assetId.toLowerCase().includes("demo")) {
+            try {
+                logger.info(`Checking duration for ${assetId}...`);
+                const vault = await state.onchainClient.fetchVault(assetId);
+                if (vault && vault.minEpochDuration !== BigInt(180)) {
+                    logger.info(`Updating ${assetId} minEpochDuration to 180s...`);
+                    await state.onchainClient.setMinEpochDuration(assetId, 180);
+                    logger.info(`✅ ${assetId} updated`);
+                }
+            } catch (err: any) {
+                logger.warn(`Could not update demo duration for ${assetId}: ${err.message}`);
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -672,16 +730,29 @@ function startHealthServer(): void {
 async function main(): Promise<void> {
     await initialize();
 
-    // Schedule epoch rolls
-    const cronJob = new CronJob(config.cronSchedule, async () => {
-        logger.info("Scheduled epoch roll triggered");
-        await runEpochRoll();
-    });
-    cronJob.start();
-    logger.info("Scheduled epoch rolls", { schedule: config.cronSchedule });
-
     // Start health server
     startHealthServer();
+
+    // Main control loop - check every minute
+    logger.info("Starting maintenance loop (1m check)...");
+    setInterval(async () => {
+        // 1. Check for automated demo rolls
+        await checkAutomatedRolls();
+
+        // 2. Fallback check for production schedule (UTC 0, 6, 12, 18)
+        const now = new Date();
+        const min = now.getUTCMinutes();
+        const hour = now.getUTCHours();
+
+        // If it's a 6-hour mark and first 2 mins of the hour, trigger production roll
+        if (hour % 6 === 0 && min < 2 && !state.isRunning) {
+            const lastRunDiff = state.lastRunTime ? (Date.now() - state.lastRunTime) : Infinity;
+            if (lastRunDiff > 5 * 60 * 1000) { // Don't re-run within same window
+                logger.info("Maintenance loop: Triggering production roll schedule");
+                await runEpochRoll();
+            }
+        }
+    }, 60000);
 
     logger.info("Keeper service ready");
     logger.info("========================================");

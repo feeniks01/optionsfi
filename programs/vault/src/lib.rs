@@ -564,7 +564,20 @@ pub mod vault {
     pub fn set_pause(ctx: Context<SetPause>, paused: bool) -> Result<()> {
         let vault = &mut ctx.accounts.vault;
         vault.is_paused = paused;
-        msg!("Vault pause status set to: {}", paused);
+        Ok(())
+    }
+
+    /// Set minimum epoch duration (authority only)
+    pub fn set_min_epoch_duration(ctx: Context<SetParam>, duration: i64) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        vault.min_epoch_duration = duration;
+        Ok(())
+    }
+
+    /// Set utilization cap (authority only)
+    pub fn set_utilization_cap(ctx: Context<SetParam>, cap_bps: u16) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        vault.utilization_cap_bps = cap_bps;
         Ok(())
     }
 }
@@ -948,6 +961,19 @@ pub struct AddMarketMaker<'info> {
 
 #[derive(Accounts)]
 pub struct SetPause<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.asset_id.as_bytes()],
+        bump = vault.bump,
+        has_one = authority
+    )]
+    pub vault: Account<'info, Vault>,
+
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetParam<'info> {
     #[account(
         mut,
         seeds = [b"vault", vault.asset_id.as_bytes()],

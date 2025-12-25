@@ -130,17 +130,26 @@ function handleMessage(msg) {
         // Track the underlying asset for this RFQ
         rfqVaults[msg.rfqId] = msg.underlying;
 
-        // Generate quote with realistic spread
-        // Premium = size (tokens) * spotPrice * premiumPercent (~0.2% for 6h OTM calls)
-        const premiumPercent = 0.002 + Math.random() * 0.001;
-        // Use strike as proxy for spot price (strike is 10% OTM)
-        const spotPrice = msg.strike / 1.10;
+        // Generate quote scaled by actual duration
+        // Base rate ~0.2% for a standard 7-day (10,080 min) epoch
+        const expiry = msg.expiry || (Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const now = Date.now();
+        const durationMinutes = Math.max(1, (expiry - now) / (1000 * 60));
+
+        const baseRate = 0.002 + Math.random() * 0.001;
+        const timeScale = Math.sqrt(durationMinutes / 10080); // sqrt scale for realistic time-value decay
+        const premiumPercent = baseRate * timeScale;
+
+        // Derive spot from strike (Demo is 1% OTM, Regular is 10% OTM)
+        const isDemo = msg.underlying.toLowerCase().includes("demo");
+        const spotPrice = isDemo ? (msg.strike / 1.01) : (msg.strike / 1.10);
         // Premium in USD = size_tokens * price * percent
         const premiumUsd = msg.size * spotPrice * premiumPercent;
-        // Convert to USDC base units (6 decimals) and ensure it's an integer
+        // Convert to USDC base units (6 decimals) and ensure it's at least 1 (smallest unit)
         const premium = Math.max(1, Math.floor(premiumUsd * 1e6));
 
-        console.log(`📊 Premium calc: ${msg.size} tokens × $${spotPrice.toFixed(2)} × ${(premiumPercent * 100).toFixed(4)}% = $${premiumUsd.toFixed(6)} (${premium} base units)`);
+        console.log(`📊 Premium calc: ${msg.size} tokens × $${spotPrice.toFixed(2)} × ${(premiumPercent * 100).toFixed(6)}% = $${premiumUsd.toFixed(6)} (${premium} base units)`);
+        console.log(`   Duration Score: ${durationMinutes.toFixed(1)} mins (Scale: ${timeScale.toFixed(4)}x)`);
 
         // Simulate thinking time (500ms - 1.5s)
         setTimeout(() => {
