@@ -91,7 +91,10 @@ async function init() {
 function connect() {
     console.log(`\nConnecting to RFQ Router as ${MAKER_ID}...`);
 
-    ws = new WebSocket(`${ROUTER_WS_URL}?makerId=${MAKER_ID}&apiKey=${MM_API_KEY}`);
+    const wsUrl = `${ROUTER_WS_URL}?makerId=${MAKER_ID}&apiKey=${MM_API_KEY}`;
+    console.log(`WebSocket URL: ${wsUrl}`);
+
+    ws = new WebSocket(wsUrl);
 
     ws.on("open", () => {
         console.log("✓ Connected to RFQ Router");
