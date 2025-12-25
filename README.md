@@ -19,24 +19,24 @@ Vaults are a reference client built on OptionsFi’s RFQ-based options settlemen
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                   │
-│                        React/Next.js + Wallet                           │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-    ┌────────────────────────────┼────────────────────────────┐
-    │                            │                            │
-    ▼                            ▼                            ▼
-┌──────────┐            ┌──────────────┐            ┌──────────────┐
-│  VAULT   │            │  RFQ ROUTER  │            │   KEEPER     │
-│ PROGRAM  │◄──────────►│  (WebSocket) │◄──────────►│  (Cron)      │
-│ (Anchor) │            └──────────────┘            └──────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                            FRONTEND                              │
+│                     React/Next.js + Wallet                       │
+└───────────────────────────────┬──────────────────────────────────┘
+                                │
+     ┌──────────────────────────┼─────────────────────────┐
+     │                          │                         │
+     ▼                          ▼                         ▼
+┌──────────┐            ┌──────────────┐            ┌──────────┐
+│  VAULT   │            │  RFQ ROUTER  │            │  KEEPER  │
+│ PROGRAM  │◄──────────►│  (WebSocket) │◄──────────►│  (Cron)  │
+│ (Anchor) │            └──────────────┘            └──────────┘
 └────┬─────┘                   ▲                          │
      │                         │                          │
      │               ┌─────────┴────────┐                 ▼
-     │               │  MARKET MAKERS   │         ┌──────────────┐
-     │               └──────────────────┘         │ PYTH ORACLE  │
-     ▼                                            └──────────────┘
+     │               │  MARKET MAKERS   │          ┌─────────────┐
+     │               └──────────────────┘          │ PYTH ORACLE │
+     ▼                                             └─────────────┘
 ┌──────────┐
 │  SOLANA  │
 │  DEVNET  │
@@ -173,12 +173,88 @@ cd app && npm run dev
 - **Frontend:** Next.js 15, React
 - **Oracles:** Pyth Network, Yahoo Finance
 
-## Security Considerations
+## Security Mechanisms
 
-- All RFQ fills are atomic on-chain transactions, eliminating counterparty settlement risk.
-- 80% utilization cap: Maximum 80% of vault TVL can be exposed to options
-- Epoch-gated withdrawals: Prevents manipulation by forcing withdrawals to wait until settlement
-- On-chain accounting: All premium and exposure recorded on-chain
+The vault program implements multiple layers of security to protect depositors:
+
+### 1. Dead Shares (First Deposit Protection)
+
+**Problem:** Share price manipulation attacks where an attacker deposits a tiny amount, then donates tokens directly to inflate share price, causing subsequent depositors to receive zero shares.
+
+**Solution:** On the first deposit, 1000 shares are minted to a "dead" address (`111...11111`).
+
+```rust
+// First depositor protection
+if vault.total_shares == 0 {
+    vault.total_shares = DEAD_SHARES; // 1000 shares locked forever
+    // User receives: shares - DEAD_SHARES
+}
+```
+
+**Impact:** Minimum viable deposit is ~1001 tokens to receive any shares. Prevents zero-share attacks.
+
+### 2. Market Maker Whitelist
+
+**Problem:** Unauthorized entities calling `pay_settlement` to drain vault funds.
+
+**Solution:** Only whitelisted market maker addresses can receive settlement payouts.
+
+```rust
+// In pay_settlement instruction
+require!(
+    vault.whitelisted_makers.contains(&settlement_recipient.key()),
+    VaultError::MarketMakerNotWhitelisted
+);
+```
+
+**Management:** Authority can add/remove whitelisted addresses via `add_whitelisted_maker` and `remove_whitelisted_maker` instructions.
+
+### 3. Epoch Timelock
+
+**Problem:** Rapid epoch cycling to manipulate premium crediting or withdrawal timing.
+
+**Solution:** Minimum duration between epoch advances enforced on-chain.
+
+```rust
+const MIN_EPOCH_DURATION: i64 = 3600; // 1 hour minimum
+
+// In advance_epoch instruction
+let elapsed = current_time - vault.last_epoch_timestamp;
+require!(elapsed >= MIN_EPOCH_DURATION, VaultError::EpochAdvanceTooSoon);
+```
+
+**Impact:** Prevents MEV-style attacks on epoch boundaries. Production should use 24-72 hour minimum.
+
+### 4. Premium Sanity Checks
+
+**Problem:** Malicious keepers recording unrealistic premiums to manipulate share prices.
+
+**Solution:** On-chain caps on premium amounts and implied yield.
+
+```rust
+// In record_notional_exposure instruction
+// Cap 1: Premium cannot exceed 50% of TVL
+const MAX_PREMIUM_RATIO_BPS: u64 = 5000; // 50%
+require!(
+    premium_amount <= (vault.total_assets * MAX_PREMIUM_RATIO_BPS) / 10000,
+    VaultError::PremiumExceedsCap
+);
+
+// Cap 2: Implied yield cannot exceed 20% per epoch
+const MAX_YIELD_PER_EPOCH_BPS: u64 = 2000; // 20%
+let implied_yield_bps = (premium_amount * 10000) / vault.total_assets;
+require!(implied_yield_bps <= MAX_YIELD_PER_EPOCH_BPS, VaultError::YieldExceedsCap);
+```
+
+### 5. Additional Protections
+
+| Protection | Description |
+|------------|-------------|
+| **Utilization Cap** | Maximum 80% of TVL can be exposed to options at any time |
+| **Epoch-Gated Withdrawals** | Withdrawals locked until epoch settlement prevents flash-loan attacks |
+| **Atomic RFQ Settlement** | On-chain atomic transactions eliminate counterparty risk |
+| **On-Chain Accounting** | All premium and exposure recorded immutably on-chain |
+| **Share Escrow** | Withdrawal requests move shares to escrow, preventing double-spend |
 
 ## Roadmap
 
