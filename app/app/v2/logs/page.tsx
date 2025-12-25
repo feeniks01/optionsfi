@@ -149,8 +149,8 @@ export default function LogsPage() {
                     <button
                         onClick={() => setAutoRefresh(!autoRefresh)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${autoRefresh
-                                ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                                : "bg-gray-800 text-gray-400"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : "bg-gray-800 text-gray-400"
                             }`}
                     >
                         {autoRefresh ? <Radio className="w-4 h-4 animate-pulse" /> : <Pause className="w-4 h-4" />}
@@ -230,12 +230,6 @@ export default function LogsPage() {
                         ))
                     )}
                 </div>
-            </div>
-
-            {/* Config Footer */}
-            <div className="text-xs text-gray-600 font-mono">
-                RFQ Router: {process.env.NEXT_PUBLIC_RFQ_ROUTER_URL || "(not set)"} |
-                Keeper: {process.env.NEXT_PUBLIC_KEEPER_URL || "(not set)"}
             </div>
         </div>
     );
