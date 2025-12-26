@@ -1132,8 +1132,8 @@ function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, 
                 <div className="flex items-center gap-3">
                     <div className="text-right">
                         <p className="font-semibold text-white">{formatCurrency(position.sharesUsd)}</p>
-                        <p className={`text-[10px] ${position.unrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                            {formatCurrency(position.unrealizedPnl)} ({formatPercent(position.unrealizedPnlPercent)})
+                        <p className={`text-[10px] ${Math.abs(position.unrealizedPnl) < 1 ? "text-gray-400" : position.unrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {Math.abs(position.unrealizedPnl) < 1 ? "$0 (0.00%)" : `${formatCurrency(position.unrealizedPnl)} (${formatPercent(position.unrealizedPnlPercent)})`}
                         </p>
                     </div>
 
