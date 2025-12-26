@@ -253,8 +253,8 @@ export function useVault(assetId: string): UseVaultReturn {
         setTxSignature(signature);
         setTxStatus("success");
 
-        // Refresh data after transaction
-        await fetchData();
+        // Refresh data after transaction (bypass cache)
+        await fetchData(true);
 
         return signature;
     };
