@@ -108,14 +108,31 @@ export async function POST(request: NextRequest) {
             recipientPubkey
         );
 
-        // Mint tokens
-        const signature = await mintTo(
-            connection,
-            mintAuthority,
+        // Create manual transaction with Priority Fees to avoid block height expiry
+        const { ComputeBudgetProgram, Transaction, sendAndConfirmTransaction } = await import('@solana/web3.js');
+        const { createMintToInstruction } = await import('@solana/spl-token');
+
+        // Priority Fee instruction (50,000 microLamports = 0.05 lamports/CU)
+        const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({
+            microLamports: 50000
+        });
+
+        // Mint instruction
+        const mintIx = createMintToInstruction(
             MOCK_NVDAX_MINT,
             recipientTokenAccount.address,
-            mintAuthority,
+            mintAuthority.publicKey,
             amountBaseUnits
+        );
+
+        const tx = new Transaction().add(priorityFeeIx, mintIx);
+
+        // Send and confirm
+        const signature = await sendAndConfirmTransaction(
+            connection,
+            tx,
+            [mintAuthority],
+            { commitment: 'confirmed' }
         );
 
         // Record this request for rate limiting
