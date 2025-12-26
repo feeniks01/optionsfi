@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Coins, PieChart, Activity, BookOpen, Settings, Droplets, Logs, Menu, X } from "lucide-react";
+import { Coins, PieChart, Activity, BookOpen, Settings, Droplets, Logs, Menu, X, LayoutDashboard, Radar, ScrollText } from "lucide-react";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -36,15 +36,15 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
 
     // Core product navigation
     const coreNavItems = [
-        { href: "/v2/portfolio", label: "Portfolio", icon: PieChart },
+        { href: "/v2/portfolio", label: "Portfolio", icon: LayoutDashboard },
         { href: "/v2", label: "Earn", icon: Coins },
-        { href: "/v2/oracle", label: "Oracle", icon: Activity },
+        { href: "/v2/oracle", label: "Oracle", icon: Radar },
     ];
 
     // Utility navigation (bottom section)
     const utilityNavItems = [
         { href: "/v2/faucet", label: "Faucet", icon: Droplets },
-        { href: "/v2/logs", label: "Logs", icon: Logs },
+        { href: "/v2/logs", label: "Logs", icon: ScrollText },
         { href: "/v2/docs", label: "Docs", icon: BookOpen },
         { href: "/v2/settings", label: "Settings", icon: Settings },
     ];
@@ -53,6 +53,12 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
         if (href === "/v2") return pathname === "/v2" || pathname === "/v2/earn" || pathname?.startsWith("/v2/earn/");
         return pathname?.startsWith(href);
     };
+
+    const isDocs = pathname?.startsWith('/v2/docs');
+
+    if (isDocs) {
+        return <>{children}</>;
+    }
 
     return (
         <div className="h-screen flex flex-col bg-background overflow-hidden">
