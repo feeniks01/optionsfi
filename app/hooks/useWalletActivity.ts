@@ -37,19 +37,25 @@ export function useWalletActivity() {
             setLoading(true);
             setError(null);
 
-            // Fetch recent signatures for the wallet
+            // Fetch recent signatures for the wallet (limited to reduce RPC load)
             const signatures = await connection.getSignaturesForAddress(
                 publicKey,
-                { limit: 50 },
+                { limit: 20 }, // Reduced from 50 to avoid rate limits
                 "confirmed"
             );
 
-            // Fetch transactions in PARALLEL batches for speed
-            const BATCH_SIZE = 10;
+            // Fetch transactions in small batches with delays to avoid 429s
+            const BATCH_SIZE = 3; // Reduced from 10
+            const BATCH_DELAY_MS = 200; // Delay between batches
             const relevantActivities: WalletActivity[] = [];
 
             for (let i = 0; i < signatures.length; i += BATCH_SIZE) {
                 const batch = signatures.slice(i, i + BATCH_SIZE);
+
+                // Add delay between batches (not on first batch)
+                if (i > 0) {
+                    await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+                }
 
                 const txPromises = batch.map(async (sig) => {
                     try {
