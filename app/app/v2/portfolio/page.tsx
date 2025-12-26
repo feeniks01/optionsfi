@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
     Wallet, Clock, ChevronRight, ChevronDown, MoreHorizontal,
-    PieChart, ExternalLink, RefreshCw, Zap, Maximize2, X, Sparkles,
+    Briefcase, ExternalLink, RefreshCw, Zap, Maximize2, X, Sparkles,
     Settings, Plus, Copy, Eye, Activity, ArrowUpRight, ArrowDownRight,
     Loader2, CheckCircle, AlertCircle
 } from "lucide-react";
@@ -857,7 +857,7 @@ export default function PortfolioPage() {
                     <div className={activityPanelOpen ? "lg:col-span-2" : "lg:col-span-3"}>
                         <div className="flex items-center justify-between mb-2">
                             <h2 className="text-sm font-medium text-gray-400 flex items-center gap-1.5">
-                                <PieChart className="w-4 h-4" /> Positions
+                                <Briefcase className="w-4 h-4" /> Positions
                             </h2>
                             {!activityPanelOpen && (
                                 <button
