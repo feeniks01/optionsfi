@@ -1071,8 +1071,8 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                             <div className={`w-2 h-2 rounded-full ${cfg.color} ring-2 ring-white/20 cursor-pointer transition-transform ${isHovered ? "scale-150" : ""}`} />
                             {isHovered && (() => {
                                 const isNearTop = m.y < 30;
-                                const isNearRight = m.x > 80;
-                                const isNearLeft = m.x < 20;
+                                const isNearRight = m.x > 60;
+                                const isNearLeft = m.x < 40;
                                 const hAlign = isNearRight ? 'right-0' : isNearLeft ? 'left-0' : 'left-1/2 -translate-x-1/2';
                                 const vAlign = isNearTop ? 'top-full mt-3' : 'bottom-full mb-3';
                                 return (
