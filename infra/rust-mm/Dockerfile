@@ -2,6 +2,8 @@ FROM rust:1.92-slim-bookworm as builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
 # Copy manifest only to cache dependencies
 COPY Cargo.toml ./
 # Create dummy main to build deps
