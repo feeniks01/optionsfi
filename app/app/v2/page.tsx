@@ -98,9 +98,24 @@ export default function V2EarnDashboard() {
         // Compute tier dynamically from APY
         const tier = computeTier(apy, meta.isDemo);
 
-        // Calculate per-vault roll time
+        // Calculate per-vault roll time (Prioritize on-chain data)
         let rollTime = nextRoll.timeString;
-        if (meta.isDemo) {
+
+        if (liveData && liveData.lastRollTimestamp > 0 && liveData.minEpochDuration > 0) {
+            const now = Math.floor(Date.now() / 1000);
+            const nextRollTs = liveData.lastRollTimestamp + liveData.minEpochDuration;
+            const remaining = Math.max(0, nextRollTs - now);
+
+            if (remaining < 3600) {
+                const m = Math.floor(remaining / 60);
+                const s = remaining % 60;
+                rollTime = `${m}m ${s}s`;
+            } else {
+                const h = Math.floor(remaining / 3600);
+                const m = Math.floor((remaining % 3600) / 60);
+                rollTime = `${h}h ${m}m`;
+            }
+        } else if (meta.isDemo) {
             const now = Math.floor(Date.now() / 1000);
             const remaining = Math.max(0, 900 - (now % 900));
             const m = Math.floor(remaining / 60);
