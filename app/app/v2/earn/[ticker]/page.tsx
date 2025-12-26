@@ -322,19 +322,54 @@ export default function VaultDetailPage() {
                             </p>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                            <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                USDC Earned
-                                <span className="relative group">
-                                    <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        Accumulated USDC premium from covered calls
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-sm text-gray-400 flex items-center gap-1.5">
+                                    USDC Rewards
+                                    <span className="relative group">
+                                        <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
+                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                            Your share of premiums vs Vault total
+                                        </span>
                                     </span>
-                                </span>
-                            </p>
-                            <p className="text-2xl font-bold text-emerald-400">
-                                ${vaultData?.premiumBalanceUsdc ? (Number(vaultData.premiumBalanceUsdc) / 1e6).toFixed(2) : "0.00"}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">total premium</p>
+                                </p>
+                            </div>
+
+                            <div className="space-y-3">
+                                {/* Your Share */}
+                                <div>
+                                    <p className="text-2xl font-bold text-emerald-400">
+                                        {(() => {
+                                            const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
+                                            const vaultPremium = vaultData ? Number(vaultData.premiumBalanceUsdc) : 0;
+                                            const userRatio = totalShares > 0 ? (Number(userShareBalance) / totalShares) : 0;
+                                            const yourShare = (vaultPremium / 1e6) * userRatio;
+                                            return `$${yourShare.toFixed(2)}`;
+                                        })()}
+                                    </p>
+                                    <p className="text-xs text-emerald-500/80 font-medium">Your Claimable Share</p>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="h-px bg-gray-700/50" />
+
+                                {/* Vault Total */}
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <p className="text-sm text-gray-400">Vault Total</p>
+                                        <p className="text-lg font-semibold text-gray-200">
+                                            ${vaultData?.premiumBalanceUsdc ? (Number(vaultData.premiumBalanceUsdc) / 1e6).toFixed(2) : "0.00"}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-1">
+                                        {(() => {
+                                            const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
+                                            if (totalShares === 0) return "No shares";
+                                            const ratio = (Number(userShareBalance) / totalShares) * 100;
+                                            return ratio > 0 ? `${ratio.toFixed(2)}% pool share` : "No position";
+                                        })()}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
                             <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
