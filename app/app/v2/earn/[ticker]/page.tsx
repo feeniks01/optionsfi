@@ -208,26 +208,25 @@ export default function VaultDetailPage() {
     const utilization = tvlTokens > 0 ? (exposureTokens / tvlTokens) * 100 : 0;
     const utilizationCap = vaultData?.utilizationCapBps ? vaultData.utilizationCapBps / 100 : 80;
 
-    // Epoch timing - calculate based on a fixed weekly schedule
-    // Epochs run Sunday 00:00 UTC to Saturday 23:59 UTC
+    // Epoch timing - calculate based on on-chain data or fallback
     const getEpochEndTime = useCallback(() => {
         if (vaultData) {
             // Use on-chain timestamps if available
             const lastRoll = vaultData.lastRollTimestamp;
-            const minDuration = vaultData.minEpochDuration;
 
-            // If we have a last roll, that's our anchor
+            // Match keeper fallback logic: if minEpochDuration is 0, use defaults
+            let minDuration = vaultData.minEpochDuration;
+            if (minDuration === 0) {
+                minDuration = vaultMeta.isDemo ? 180 : 604800; // 3 min for demo, 7 days for prod
+            }
+
+            // If we have a last roll, calculate end time
             if (lastRoll > 0) {
-                // For demo vaults, if it's already past the min duration, return now to show "Ready"
-                const endTime = lastRoll + minDuration;
-                if (vaultMeta.isDemo && endTime < Math.floor(Date.now() / 1000)) {
-                    return Math.floor(Date.now() / 1000);
-                }
-                return endTime;
+                return lastRoll + minDuration;
             }
         }
 
-        // For demo vaults, use a short 3-minute fallback if no on-chain data
+        // Fallback: use 3-minute marks for demo, 6-hour marks for production
         if (vaultMeta?.isDemo) {
             const now = Math.floor(Date.now() / 1000);
             return now + (180 - (now % 180)); // Next 3-minute mark
@@ -261,16 +260,20 @@ export default function VaultDetailPage() {
     }, [getEpochEndTime]);
 
     const minutesUntilEnd = Math.floor(timeUntilEpochEnd / 60);
+    const secondsUntilEnd = timeUntilEpochEnd % 60;
     const hoursUntilEnd = Math.floor(minutesUntilEnd / 60);
     const remainingMinutes = minutesUntilEnd % 60;
     const daysUntilEnd = Math.floor(hoursUntilEnd / 24);
     const remainingHours = hoursUntilEnd % 24;
 
-    const timeString = daysUntilEnd > 0
-        ? `${daysUntilEnd}d ${remainingHours} h`
-        : hoursUntilEnd > 0
-            ? `${hoursUntilEnd}h ${remainingMinutes} m`
-            : `${remainingMinutes} m`;
+    // For demo vaults or short intervals, show minutes:seconds
+    const timeString = vaultMeta.isDemo || timeUntilEpochEnd < 600
+        ? `${minutesUntilEnd}:${secondsUntilEnd.toString().padStart(2, '0')}`
+        : daysUntilEnd > 0
+            ? `${daysUntilEnd}d ${remainingHours}h`
+            : hoursUntilEnd > 0
+                ? `${hoursUntilEnd}h ${remainingMinutes}m`
+                : `${remainingMinutes}m`;
 
     // Themed background gradient
     const backgroundStyle = {
@@ -370,7 +373,9 @@ export default function VaultDetailPage() {
                             </p>
                             <p className="text-2xl font-bold text-white">#{epoch}</p>
                             <p className="text-xs text-gray-500 mt-0.5">
-                                {timeUntilEpochEnd <= 0 ? "Ready to Roll" : `${timeString} left`}
+                                {timeUntilEpochEnd <= 0
+                                    ? "Ready to Roll"
+                                    : `${timeString} left`}
                             </p>
                         </div>
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
