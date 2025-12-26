@@ -582,7 +582,7 @@ export default function PortfolioPage() {
         }
 
         // If we only have start and end points (no activity), add intermediate points for smoother chart
-        if (points.length <= 2) {
+        if (points.length > 0 && points.length <= 2) {
             const startPoint = points[0];
             const endPoint = points[points.length - 1];
             const startVal = startPoint.value;

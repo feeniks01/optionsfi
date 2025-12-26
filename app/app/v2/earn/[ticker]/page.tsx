@@ -40,7 +40,6 @@ function PayoffChart({ spotPrice, strikePrice, premiumRange }: { spotPrice: numb
                 </div>
                 <div className="absolute left-[47%] top-0 bottom-0 w-0.5 bg-white/40" />
                 <div className="absolute left-[47%] top-0 -translate-x-1/2 text-[10px] text-white/70 bg-gray-900/90 px-1.5 py-0.5 rounded">now</div>
-                {/* Fixed Labels Removed */}
                 <div className="absolute right-2 top-1 text-xs bg-gray-900/90 px-1.5 py-0.5 rounded">
                     <span className="text-yellow-400">cap ${strikePrice.toFixed(0)}</span>
                 </div>
@@ -225,10 +224,10 @@ export default function VaultDetailPage() {
     return (
         <div className="space-y-4 min-h-screen -m-4 p-4" style={{ ...backgroundStyle, width: 'calc(100% + 2rem)' }}>
             {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Link href="/v2" className="hover:text-gray-200">Earn</Link>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Link href="/v2" className="hover:text-gray-400">Earn</Link>
                 <span>/</span>
-                <span className="text-gray-200">{vaultMeta.name}</span>
+                <span className="text-gray-500">{vaultMeta.name}</span>
             </div>
 
             {/* Header */}
@@ -295,12 +294,12 @@ export default function VaultDetailPage() {
                                     <div>
                                         <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
                                             USDC Premium Earned
-                                            <Info className="w-3.5 h-3.5 text-gray-500" />
+                                            <span title="Your share of premium earned from RFQ-filled options this epoch" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
                                         </p>
                                         <p className="text-4xl font-bold text-emerald-400 mt-2">
                                             ${yourShare.toFixed(2)}
                                         </p>
-                                        <p className="text-xs text-emerald-500/80 mt-1">Earned from RFQ-filled option premiums</p>
+                                        <p className="text-xs text-emerald-500/80 mt-1">Claimable at epoch settlement</p>
                                     </div>
                                     <div className="border-t border-gray-700/50 pt-2 mt-2">
                                         <div className="flex justify-between items-center text-xs">
@@ -316,13 +315,13 @@ export default function VaultDetailPage() {
                             <div>
                                 <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
                                     Epoch Status
-                                    <Info className="w-3.5 h-3.5 text-gray-500" />
+                                    <span title="Current epoch lifecycle: RFQ → Exposure → Settlement" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
                                 </p>
                                 <div className="space-y-1.5 mt-3">
                                     <p className="text-sm font-medium text-gray-200">RFQ Filled</p>
                                     <p className="text-sm font-medium text-gray-200">Option Exposure Active</p>
                                     <p className="text-xs text-gray-500">Settlement at Epoch End</p>
-                                    <p className="text-[10px] text-gray-600">Exposure recorded on-chain</p>
+                                    <p className="text-[10px] text-gray-500">Time remaining: ~{timeString}</p>
                                 </div>
                             </div>
                         </div>
@@ -332,12 +331,12 @@ export default function VaultDetailPage() {
                             <div>
                                 <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
                                     Options Sold
-                                    <Info className="w-3.5 h-3.5 text-gray-500" />
+                                    <span title="Total notional exposure sold via RFQ this epoch" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
                                 </p>
-                                <p className="text-2xl font-bold text-white mt-1">
+                                <p className="text-2xl font-semibold text-white mt-1">
                                     {exposureTokens.toFixed(2)} <span className="text-lg text-gray-500 font-normal">{vaultMeta.symbol}</span>
                                 </p>
-                                <p className="text-xs text-gray-500 mt-0.5">Notional covered in current epoch</p>
+                                <p className="text-xs text-gray-400 mt-0.5">Notional covered in current epoch</p>
                             </div>
 
                             <div className="mt-3">
@@ -370,9 +369,17 @@ export default function VaultDetailPage() {
                                 <p className="text-sm text-gray-400">TVL</p>
                                 <p className="text-xs text-gray-500"></p>
                             </div>
-                            <div className="flex items-baseline justify-between">
-                                <p className="text-lg font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                                <p className="text-sm text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                            <div className="flex flex-col gap-1">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-lg font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                    <div className="text-right">
+                                        <p className="text-sm text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                                        <p className="text-[10px] text-gray-500">Vault collateral</p>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Utilized: {exposureTokens.toFixed(2)} {vaultMeta.symbol} ({utilization.toFixed(0)}%)
+                                </p>
                             </div>
                         </div>
 
@@ -442,7 +449,7 @@ export default function VaultDetailPage() {
                     <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 sticky top-4">
                         {/* Panel Header */}
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm text-gray-400">{vaultMeta.strategy} ({tier})</span>
+                            <span className="text-sm text-gray-400"></span>
                             <button onClick={refresh} className="text-gray-500 hover:text-gray-300">
                                 <RefreshCw className="w-4 h-4" />
                             </button>
