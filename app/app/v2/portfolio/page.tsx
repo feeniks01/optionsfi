@@ -428,12 +428,12 @@ export default function PortfolioPage() {
                 const unrealizedPnl = sharesUsd - costBasis;
                 const unrealizedPnlPercent = costBasis > 0 ? (unrealizedPnl / costBasis) * 100 : 0;
 
-                // Calculate accrued premium from vault's epoch premium earned
-                // epochPremiumEarned is the total premium for the vault, user's share is proportional
-                const epochPremiumTotal = Number(vault.epochPremiumEarned || "0") / 1e6; // Convert from base units
+                // Calculate accrued premium from vault's accumulated premium balance (on-chain USDC)
+                // premiumBalanceUsdc is the actual USDC in the vault from RFQ settlements
+                const vaultPremiumUsdc = Number(vault.premiumBalanceUsdc || "0") / 1e6; // Convert from base units
                 const totalVaultShares = Number(vault.totalShares) || 1;
                 const userShareRatio = userShares / totalVaultShares;
-                const accruedPremium = epochPremiumTotal * userShareRatio * oraclePrice;
+                const accruedPremium = vaultPremiumUsdc * userShareRatio; // Already in USD, no oracle conversion needed
 
                 // APY from vault data
                 const vaultApy = vault.apy || 0;
@@ -622,8 +622,12 @@ export default function PortfolioPage() {
         return { chartData: points, premiumBars: bars };
     }, [walletActivities, chartRange, chartMode, stats]);
 
-    const chartMin = chartData.length > 0 ? Math.min(...chartData.map(d => d.value)) : 0;
-    const chartMax = chartData.length > 0 ? Math.max(...chartData.map(d => d.value)) : 100;
+    // Add padding to avoid flat line rendering issues
+    const rawMin = chartData.length > 0 ? Math.min(...chartData.map(d => d.value)) : 0;
+    const rawMax = chartData.length > 0 ? Math.max(...chartData.map(d => d.value)) : 100;
+    // If min equals max, add 1% padding to prevent divide-by-zero and render a flat horizontal line
+    const chartMin = rawMin === rawMax ? rawMin * 0.99 : rawMin;
+    const chartMax = rawMin === rawMax ? rawMax * 1.01 : rawMax;
     const minTime = chartData.length > 0 ? chartData[0].date.getTime() : 0;
     const maxTime = chartData.length > 0 ? chartData[chartData.length - 1].date.getTime() : 1;
     const timeRange = maxTime - minTime || 1;
