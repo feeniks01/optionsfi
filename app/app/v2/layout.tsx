@@ -76,7 +76,7 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                         </Link>
 
                         {/* V1/V2 Toggle - hidden on mobile */}
-                        <div className="hidden md:flex items-center bg-secondary/50 rounded-lg p-0.5 border border-border">
+                        {/* <div className="hidden md:flex items-center bg-secondary/50 rounded-lg p-0.5 border border-border">
                             <Link
                                 href="/"
                                 className="px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground transition-colors"
@@ -86,7 +86,7 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                             <div className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500/20 text-blue-400">
                                 V2
                             </div>
-                        </div>
+                        </div> */}
                     </div>
 
                     <div className="flex items-center gap-2 md:gap-3">
