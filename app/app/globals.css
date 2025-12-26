@@ -170,6 +170,32 @@ input[type="number"] {
   transition: all 0.15s ease !important;
 }
 
+/* Mobile Fixes for Wallet Button - ONLY when in header */
+@media (max-width: 768px) {
+  header .wallet-adapter-button span {
+    display: none !important;
+  }
+
+  header .wallet-adapter-button {
+    max-width: 42px !important;
+    min-width: 42px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+}
+
+/* General constraints to prevent layout shifts */
+.wallet-adapter-button {
+  max-width: 140px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+header {
+  height: 56px;
+  contain: layout;
+}
+
 .wallet-adapter-button:hover {
   background-color: #3f3f46 !important;
 }

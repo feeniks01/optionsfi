@@ -63,8 +63,8 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
     return (
         <div className="h-screen flex flex-col bg-background overflow-hidden">
             {/* Top Header - Clean, minimal */}
-            <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-md z-50">
-                <div className="h-14 flex justify-between items-center px-4 md:px-6">
+            <header className="flex-shrink-0 h-14 border-b border-border bg-background/80 backdrop-blur-md z-50">
+                <div className="h-full flex justify-between items-center px-4 md:px-6">
                     <div className="flex items-center gap-3 md:gap-6">
                         {/* Mobile Menu Toggle */}
                         <button
@@ -102,8 +102,10 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                             <span className="text-[10px] md:text-xs font-medium text-muted-foreground">Devnet</span>
                         </div>
 
-                        {/* Wallet */}
-                        <WalletMultiButton className="!bg-secondary !text-secondary-foreground hover:!bg-secondary/80 !rounded-lg !h-8 md:!h-9 !px-3 md:!px-4 !text-xs md:!text-sm !font-medium !border !border-border" />
+                        {/* Wallet - hidden on mobile (moved to menu) */}
+                        <div className="hidden md:block">
+                            <WalletMultiButton className="!bg-secondary !text-secondary-foreground hover:!bg-secondary/80 !rounded-lg !h-8 md:!h-9 !px-3 md:!px-4 !text-xs md:!text-sm !font-medium !border !border-border" />
+                        </div>
                     </div>
                 </div>
             </header>
@@ -112,40 +114,49 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
                 {/* Mobile Menu Overlay */}
                 {mobileMenuOpen && (
                     <div className="md:hidden fixed inset-0 top-14 bg-background/95 backdrop-blur-sm z-40 overflow-y-auto">
-                        <nav className="p-4 space-y-2">
-                            {coreNavItems.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.href}
-                                        href={item.href}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive(item.href)
-                                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                                            }`}
-                                    >
-                                        <Icon className="w-5 h-5" />
-                                        <span>{item.label}</span>
-                                    </Link>
-                                );
-                            })}
-                            <div className="border-t border-border my-4" />
-                            {utilityNavItems.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.href}
-                                        href={item.href}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.href)
-                                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                            : "text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50"
-                                            }`}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        <span>{item.label}</span>
-                                    </Link>
-                                );
-                            })}
+                        <nav className="p-4 space-y-4">
+                            {/* Wallet in Mobile Menu */}
+                            <div className="px-1 pt-2 pb-4 border-b border-border">
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-3 px-3">Account</p>
+                                <WalletMultiButton className="w-full !flex !justify-center !bg-secondary !text-secondary-foreground hover:!bg-secondary/80 !rounded-xl !h-12 !text-sm !font-semibold !border !border-border" />
+                            </div>
+
+                            <div className="space-y-2 pt-2">
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-3 px-3">Navigation</p>
+                                {coreNavItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive(item.href)
+                                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                                                }`}
+                                        >
+                                            <Icon className="w-5 h-5" />
+                                            <span>{item.label}</span>
+                                        </Link>
+                                    );
+                                })}
+                                <div className="border-t border-border my-4" />
+                                {utilityNavItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.href)
+                                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                                : "text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50"
+                                                }`}
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            <span>{item.label}</span>
+                                        </Link>
+                                    );
+                                })}
+                            </div>
                         </nav>
                     </div>
                 )}

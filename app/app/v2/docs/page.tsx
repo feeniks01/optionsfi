@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
     ArrowLeft, Zap, Shield, Clock, TrendingUp,
-    Code, Terminal, ChevronRight, Menu,
+    Code, Terminal, ChevronRight, Menu, X,
     LayoutGrid, Wallet, Landmark, FileCode,
     Calculator, AlertTriangle, Lock, Key
 } from "lucide-react";
@@ -36,9 +36,16 @@ export default function V2DocsPage() {
 
             {/* Mobile Header */}
             <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-[#0B0F17] sticky top-0 z-50">
-                <span className="font-bold text-white">OptionsFi Docs</span>
-                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                    <Menu className="w-6 h-6" />
+                {!mobileMenuOpen ? (
+                    <span className="font-bold text-white tracking-tight">OptionsFi Docs</span>
+                ) : (
+                    <div />
+                )}
+                <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="p-1 -mr-1 text-gray-400 hover:text-white transition-colors"
+                >
+                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
             </div>
 
