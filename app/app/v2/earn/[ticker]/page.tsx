@@ -287,270 +287,148 @@ export default function VaultDetailPage() {
                 {/* Left Column */}
                 <div className="lg:col-span-2 space-y-4">
                     {/* KPI Row */}
-                    <div className="grid grid-cols-4 gap-3">
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                            <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                TVL
-                                <span className="relative group">
-                                    <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        Total Value Locked - Assets deposited in this vault
-                                    </span>
-                                </span>
-                            </p>
-                            <p className="text-2xl font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                            <div className="flex items-center justify-between mt-0.5 gap-2">
-                                <p className="text-xs text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
-                                <p className="text-xs text-gray-500">{utilization.toFixed(0)}% utilized</p>
-                            </div>
+                    {/* 1. Mini Chips Row */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Pricing / RFQ Chip */}
+                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60 text-gray-300' : 'bg-red-500/10 border-red-500/30 text-red-400'
+                            }`}>
+                            {rfq.routerLoading ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                                rfq.routerOnline ? <Radio className="w-3 h-3 text-green-500" /> : <AlertCircle className="w-3 h-3" />}
+                            {rfq.routerOnline ? "RFQ Online" : "RFQ Offline"}
                         </div>
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                            <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                Epoch
-                                <span className="relative group">
-                                    <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        Current epoch - Each epoch is one options cycle
-                                    </span>
-                                </span>
-                            </p>
-                            <p className="text-2xl font-bold text-white">#{epoch}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                                {timeUntilEpochEnd <= 0
-                                    ? "Ready to Roll"
-                                    : `${timeString} left`}
-                            </p>
+
+                        {/* Strike Chip */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
+                            <span>Strike</span>
+                            <span className="text-white font-semibold">{vaultMeta.strikeOffset * 100}% OTM</span>
                         </div>
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                            <div className="flex justify-between items-start mb-2">
-                                <p className="text-sm text-gray-400 flex items-center gap-1.5">
-                                    USDC Rewards
-                                    <span className="relative group">
-                                        <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                            Your share of premiums vs Vault total
-                                        </span>
-                                    </span>
+
+                        {/* Cap Chip */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
+                            <span>Cap</span>
+                            <span className="text-yellow-400 font-semibold">+{vaultMeta.premiumRange[1]}%</span>
+                        </div>
+
+                        {/* Limit Chip */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
+                            <span>Limit</span>
+                            <span className="text-white font-semibold">{utilizationCap}% Util</span>
+                        </div>
+                    </div>
+
+                    {/* 2. Large Cards Grid (3 Cols) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Card 1: Epoch */}
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
+                            <div>
+                                <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                    Epoch #{epoch}
+                                    <Info className="w-3.5 h-3.5 text-gray-500" />
+                                </p>
+                                <p className="text-3xl font-bold text-white mt-2">
+                                    {timeUntilEpochEnd <= 0 ? "Ready" : timeString}
                                 </p>
                             </div>
-
-                            <div className="space-y-3">
-                                {/* Your Share */}
-                                <div>
-                                    <p className="text-2xl font-bold text-emerald-400">
-                                        {(() => {
-                                            const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
-                                            const vaultPremium = vaultData ? Number(vaultData.premiumBalanceUsdc) : 0;
-                                            const userRatio = totalShares > 0 ? (Number(userShareBalance) / totalShares) : 0;
-                                            const yourShare = (vaultPremium / 1e6) * userRatio;
-                                            return `$${yourShare.toFixed(2)}`;
-                                        })()}
-                                    </p>
-                                    <p className="text-xs text-emerald-500/80 font-medium">Your Claimable Share</p>
+                            <div className="mt-2">
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${vaultState === "ACTIVE" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"
+                                    }`}>
+                                    {vaultState === "ACTIVE" ? <Play className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                                    {vaultState === "ACTIVE" ? "Active" : "Rolling"}
                                 </div>
+                            </div>
+                        </div>
 
-                                {/* Divider */}
-                                <div className="h-px bg-gray-700/50" />
+                        {/* Card 2: Personal Rewards */}
+                        {(() => {
+                            const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
+                            const vaultPremium = vaultData ? Number(vaultData.premiumBalanceUsdc) : 0;
+                            const userRatio = totalShares > 0 ? (Number(userShareBalance) / totalShares) : 0;
+                            const yourShare = (vaultPremium / 1e6) * userRatio;
 
-                                {/* Vault Total */}
-                                <div className="flex justify-between items-end">
+                            return (
+                                <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
                                     <div>
-                                        <p className="text-sm text-gray-400">Vault Total</p>
-                                        <p className="text-lg font-semibold text-gray-200">
-                                            ${vaultData?.premiumBalanceUsdc ? (Number(vaultData.premiumBalanceUsdc) / 1e6).toFixed(2) : "0.00"}
+                                        <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                            My Rewards
+                                            <Info className="w-3.5 h-3.5 text-gray-500" />
                                         </p>
+                                        <p className="text-3xl font-bold text-emerald-400 mt-2">
+                                            ${yourShare.toFixed(2)}
+                                        </p>
+                                        <p className="text-xs text-emerald-500/80 mt-1">Claimable upon withdraw</p>
                                     </div>
-                                    <p className="text-xs text-gray-500 mb-1">
-                                        {(() => {
-                                            const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
-                                            if (totalShares === 0) return "No shares";
-                                            const ratio = (Number(userShareBalance) / totalShares) * 100;
-                                            return ratio > 0 ? `${ratio.toFixed(2)}% pool share` : "No position";
-                                        })()}
-                                    </p>
+                                    <div className="flex justify-between items-end border-t border-gray-700/50 pt-2 mt-2">
+                                        <span className="text-xs text-gray-500">Vault Total</span>
+                                        <span className="text-xs text-gray-300 font-mono">${(vaultPremium / 1e6).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Card 3: Exposure / Utilization */}
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
+                            <div>
+                                <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                    Utilization
+                                    <Info className="w-3.5 h-3.5 text-gray-500" />
+                                </p>
+                                <div className="flex items-baseline gap-2 mt-2">
+                                    <p className="text-3xl font-bold text-white">{utilization.toFixed(0)}%</p>
+                                    <p className="text-sm text-gray-500">/ {utilizationCap}%</p>
                                 </div>
                             </div>
-                        </div>
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                            <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                Vault Rewards
-                                <span className="relative group">
-                                    <Info className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        Cumulative historical earnings from premiums
-                                    </span>
-                                </span>
-                            </p>
-                            <p className="text-2xl font-bold text-green-400">
-                                {vaultData?.sharePrice
-                                    ? (() => {
-                                        const pct = (vaultData.sharePrice - 1.0) * 100;
-                                        if (Math.abs(pct) < 0.005) return "0.00%";
-                                        return pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
-                                    })()
-                                    : "0.00%"}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">since inception</p>
-                        </div>
-                    </div>
 
-                    {/* Vault Status */}
-                    <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wide">Status</h3>
-                            {lastUpdated && (
-                                <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                                    {priceLoading && <RefreshCw className="w-3 h-3 animate-spin" />}
-                                    Updated {lastUpdated.toLocaleTimeString()}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Status Chips */}
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900/60 border border-gray-800/60 text-sm">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                <span className="text-gray-200">Oracle OK</span>
-                            </div>
-                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60' : 'bg-red-500/10 border-red-500/30'}`}>
-                                {rfq.routerLoading ? (
-                                    <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-                                ) : rfq.routerOnline ? (
-                                    <Radio className="w-4 h-4 text-green-500" />
-                                ) : (
-                                    <AlertCircle className="w-4 h-4 text-red-400" />
-                                )}
-                                <span className={rfq.routerOnline ? 'text-gray-200' : 'text-red-400'}>
-                                    {rfq.routerLoading ? 'Checking...' : rfq.routerOnline ? 'RFQ Online' : 'RFQ Offline'}
-                                </span>
-                            </div>
-                            {rfq.rfqStatus !== 'IDLE' && rfq.rfqStatus !== 'ERROR' && (
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-sm">
-                                    {rfq.rfqStatus === 'OPEN' ? (
-                                        <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                                    ) : rfq.rfqStatus === 'FILLED' ? (
-                                        <CheckCircle className="w-4 h-4 text-green-400" />
-                                    ) : (
-                                        <Clock className="w-4 h-4 text-yellow-400" />
-                                    )}
-                                    <span className="text-blue-400">
-                                        {rfq.rfqStatus === 'OPEN' ? `${rfq.quoteCount} quotes` : rfq.rfqStatus}
-                                    </span>
-                                    {rfq.bestPremium && (
-                                        <span className="text-green-400 font-semibold ml-1">
-                                            +${(rfq.bestPremium / 1e6).toFixed(2)}
-                                        </span>
-                                    )}
+                            <div className="mt-3">
+                                <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                                    <span>Exposure</span>
+                                    <span>{exposureTokens.toFixed(2)} Sold</span>
                                 </div>
-                            )}
-                            <div className="px-2 py-1 rounded bg-gray-900/60 text-xs text-gray-500">Pyth</div>
-                        </div>
-
-                        {/* Price Chips */}
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900/40 text-sm">
-                                <span className="text-gray-400">Spot</span>
-                                <span className="text-white font-semibold text-base">{formatPrice(underlyingPrice)}</span>
-                            </div>
-                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900/40 text-sm">
-                                <span className="text-gray-400">Strike</span>
-                                <span className="text-white font-semibold text-base">{formatPrice(strikePrice)}</span>
-                            </div>
-                        </div>
-
-                        {/* Position Bar */}
-                        <div className="p-3 rounded-lg bg-gray-900/40 border border-gray-800/40 mb-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-gray-400">Position</span>
-                                <span className="text-sm text-gray-300">Sold <span className="text-white font-semibold">{exposureTokens.toFixed(2)}</span> / Target {utilizationCap}%</span>
-                            </div>
-                            <div className="h-2.5 rounded-full bg-gray-800 overflow-hidden flex relative">
-                                <div
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{
-                                        backgroundColor: theme.accent,
-                                        width: `${Math.min(utilization, 100)}% `
-                                    }}
-                                />
-                                {/* Target marker */}
-                                <div
-                                    className="absolute top-0 bottom-0 border-r-2 border-dashed border-white/20"
-                                    style={{ left: `${utilizationCap}% ` }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Risk Note */}
-                        {strikePrice && (
-                            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-400/90">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                Upside capped above {formatPrice(strikePrice)}
-                            </div>
-                        )}
-
-                        {/* RFQ Section - Hidden via env var if not needed */}
-                        {process.env.NEXT_PUBLIC_HIDE_RFQ_SECTION !== "true" && (
-                            <div className="mt-3 p-3 rounded-lg bg-gray-900/40 border border-gray-800/40">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-400">Request Quote</span>
-                                    <span className="text-xs text-gray-500">Test RFQ Integration</span>
-                                </div>
-
-                                {rfq.routerOnline ? (
-                                    <button
-                                        onClick={() => rfq.requestQuote({
-                                            underlying: vaultMeta.symbol,
-                                            spotPrice: underlyingPrice || 100,
-                                            strikeOffsetPct: vaultMeta.strikeOffset,
-                                            notionalAmount: 1000 * 1e6, // $1000 notional
-                                            epochDurationHours: 168, // 7 days
-                                        })}
-                                        disabled={rfq.rfqLoading || rfq.rfqStatus === 'OPEN'}
-                                        className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                                <div className="h-2 rounded-full bg-gray-800 overflow-hidden relative">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500"
                                         style={{
-                                            backgroundColor: rfq.rfqLoading || rfq.rfqStatus === 'OPEN' ? '#374151' : theme.accentSoft,
-                                            color: theme.accent,
-                                            borderWidth: '1px',
-                                            borderColor: theme.accentBorder,
+                                            backgroundColor: theme.accent,
+                                            width: `${Math.min(utilization, 100)}%`
                                         }}
-                                    >
-                                        {rfq.rfqLoading ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                Requesting...
-                                            </span>
-                                        ) : rfq.rfqStatus === 'OPEN' ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Radio className="w-4 h-4 animate-pulse" />
-                                                Collecting {rfq.quoteCount} quotes...
-                                            </span>
-                                        ) : (
-                                            'Request Quote from Market Makers'
-                                        )}
-                                    </button>
-                                ) : (
-                                    <p className="text-xs text-gray-500 text-center py-2">
-                                        RFQ Router offline - Start with: <code className="bg-gray-800 px-1 rounded">npm run dev</code> in rfq-router
-                                    </p>
-                                )}
-
-                                {/* Quote Result */}
-                                {rfq.bestPremium && rfq.rfqStatus === 'FILLED' && (
-                                    <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-green-400">Best Quote Accepted</span>
-                                            <span className="text-green-400 font-semibold">
-                                                +${(rfq.bestPremium / 1e6).toFixed(4)}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            From: {rfq.bestMaker?.slice(0, 8)}...
-                                        </p>
-                                    </div>
-                                )}
+                                    />
+                                </div>
                             </div>
-                        )}
+                        </div>
                     </div>
+
+                    {/* 3. Medium Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-400 mb-0.5">TVL</p>
+                                <p className="text-xl font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                                <p className="text-xs text-gray-500">Total Deposits</p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-400 mb-0.5">Lifetime PnL</p>
+                                <p className="text-xl font-bold text-green-400">
+                                    {vaultData?.sharePrice
+                                        ? (() => {
+                                            const pct = (vaultData.sharePrice - 1.0) * 100;
+                                            if (Math.abs(pct) < 0.005) return "0.00%";
+                                            return pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
+                                        })()
+                                        : "0.00%"}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-green-400/80">Net of fees</p>
+                                <p className="text-xs text-gray-500">Since inception</p>
+                            </div>
+                        </div>
+                    </div>
+
 
                     {/* Payoff Chart */}
                     {underlyingPrice && strikePrice && (
