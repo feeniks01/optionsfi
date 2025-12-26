@@ -23,7 +23,7 @@ function PayoffChart({ spotPrice, strikePrice, premiumRange }: { spotPrice: numb
                 <span className="text-xs text-gray-400 uppercase tracking-wide">Epoch Payoff</span>
                 <span className="text-xs text-gray-500">Max upside: +{capGain.toFixed(0)}%</span>
             </div>
-            <div className="relative h-20">
+            <div className="relative h-14">
                 <div className="absolute inset-0 flex items-end gap-0.5">
                     {Array.from({ length: 24 }).map((_, i) => {
                         const height = i < 12 ? 28 : i < 18 ? 28 + (i - 12) * 9 : 82;
@@ -254,34 +254,8 @@ export default function VaultDetailPage() {
                     </div>
                     <p className="text-sm text-gray-400 mt-1">{vaultMeta.strategy} · {tier}</p>
                 </div>
-                <div className="text-right group relative">
-                    <p className="text-xs text-gray-400 flex items-center justify-end gap-1">
-                        Est. APY (Annualized)
-                        <span className="relative group/tooltip">
-                            <Info className="w-3 h-3 text-gray-500 cursor-help" />
-                            <span className="absolute right-0 bottom-full mb-2 px-2 py-1 text-[10px] text-white bg-gray-900 border border-gray-700 rounded shadow-lg w-48 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
-                                {vaultData?.apy === 0
-                                    ? "Awaiting first options roll to generate yield."
-                                    : "Projected annual return based on current epoch premium."}
-                            </span>
-                        </span>
-                    </p>
-                    <p className="text-3xl font-bold text-green-400">{(vaultData?.apy || apy).toFixed(2)}%</p>
-                </div>
             </div>
 
-            <div className="flex items-center gap-2">
-                {[
-                    { label: "Strike", value: `${Math.round(vaultMeta.strikeOffset * 100)}% OTM` },
-                    { label: "Premium", value: `${vaultMeta.premiumRange[0]}-${vaultMeta.premiumRange[1]}%`, highlight: true },
-                    { label: "Cap", value: `+ ${Math.round(vaultMeta.strikeOffset * 100)}% `, warn: true },
-                ].map((chip, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2 h-10 rounded-full bg-gray-800/50 border border-gray-700/50 text-sm">
-                        <span className="text-gray-400">{chip.label}</span>
-                        <span className={`font-semibold ${chip.highlight ? 'text-green-400' : chip.warn ? 'text-yellow-400' : 'text-white'}`}>{chip.value}</span>
-                    </div>
-                ))}
-            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Left Column */}
@@ -289,7 +263,7 @@ export default function VaultDetailPage() {
                     {/* KPI Row */}
                     {/* 1. Mini Chips Row */}
                     <div className="flex flex-wrap items-center gap-2">
-                        {/* Pricing / RFQ Chip */}
+                        {/* RFQ Chip */}
                         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60 text-gray-300' : 'bg-red-500/10 border-red-500/30 text-red-400'
                             }`}>
                             {rfq.routerLoading ? <Loader2 className="w-3 h-3 animate-spin" /> :
@@ -308,37 +282,12 @@ export default function VaultDetailPage() {
                             <span>Cap</span>
                             <span className="text-yellow-400 font-semibold">+{vaultMeta.premiumRange[1]}%</span>
                         </div>
-
-                        {/* Limit Chip */}
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
-                            <span>Limit</span>
-                            <span className="text-white font-semibold">{utilizationCap}% Util</span>
-                        </div>
                     </div>
 
-                    {/* 2. Large Cards Grid (3 Cols) */}
+                    {/* 2. Primary Grid (3 Cols) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Card 1: Epoch */}
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
-                            <div>
-                                <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                    Epoch #{epoch}
-                                    <Info className="w-3.5 h-3.5 text-gray-500" />
-                                </p>
-                                <p className="text-3xl font-bold text-white mt-2">
-                                    {timeUntilEpochEnd <= 0 ? "Ready" : timeString}
-                                </p>
-                            </div>
-                            <div className="mt-2">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${vaultState === "ACTIVE" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"
-                                    }`}>
-                                    {vaultState === "ACTIVE" ? <Play className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
-                                    {vaultState === "ACTIVE" ? "Active" : "Rolling"}
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Card 2: Personal Rewards */}
+                        {/* Card 1: USDC Premium Earned (Hero) */}
                         {(() => {
                             const totalShares = vaultData ? Number(vaultData.totalShares) : 0;
                             const vaultPremium = vaultData ? Number(vaultData.premiumBalanceUsdc) : 0;
@@ -349,39 +298,54 @@ export default function VaultDetailPage() {
                                 <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
                                     <div>
                                         <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                            My Rewards
+                                            USDC Premium Earned
                                             <Info className="w-3.5 h-3.5 text-gray-500" />
                                         </p>
-                                        <p className="text-3xl font-bold text-emerald-400 mt-2">
+                                        <p className="text-4xl font-bold text-emerald-400 mt-2">
                                             ${yourShare.toFixed(2)}
                                         </p>
-                                        <p className="text-xs text-emerald-500/80 mt-1">Claimable upon withdraw</p>
+                                        <p className="text-xs text-emerald-500/80 mt-1">Earned from RFQ-filled option settlement</p>
                                     </div>
-                                    <div className="flex justify-between items-end border-t border-gray-700/50 pt-2 mt-2">
-                                        <span className="text-xs text-gray-500">Vault Total</span>
-                                        <span className="text-xs text-gray-300 font-mono">${(vaultPremium / 1e6).toFixed(2)}</span>
+                                    <div className="border-t border-gray-700/50 pt-2 mt-2">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-500">Your share of total premiums</span>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })()}
 
-                        {/* Card 3: Exposure / Utilization */}
+                        {/* Card 2: Epoch Status */}
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
                             <div>
                                 <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                    Utilization
+                                    Epoch Status
                                     <Info className="w-3.5 h-3.5 text-gray-500" />
                                 </p>
-                                <div className="flex items-baseline gap-2 mt-2">
-                                    <p className="text-3xl font-bold text-white">{utilization.toFixed(0)}%</p>
-                                    <p className="text-sm text-gray-500">/ {utilizationCap}%</p>
+                                <div className="space-y-1.5 mt-3">
+                                    <p className="text-sm font-medium text-gray-200">RFQ filled</p>
+                                    <p className="text-sm font-medium text-gray-200">Exposure active</p>
+                                    <p className="text-xs text-gray-500">Settlement at epoch end</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Utilization */}
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
+                            <div>
+                                <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                    Options Sold
+                                    <Info className="w-3.5 h-3.5 text-gray-500" />
+                                </p>
+                                <p className="text-2xl font-bold text-white mt-1">
+                                    {exposureTokens.toFixed(2)} <span className="text-lg text-gray-500 font-normal">{vaultMeta.symbol}</span>
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">Utilization cap: {utilizationCap}%</p>
                             </div>
 
                             <div className="mt-3">
                                 <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                                    <span>Exposure</span>
-                                    <span>{exposureTokens.toFixed(2)} Sold</span>
+                                    <span>Exposure vs Cap</span>
                                 </div>
                                 <div className="h-2 rounded-full bg-gray-800 overflow-hidden relative">
                                     <div
@@ -391,51 +355,41 @@ export default function VaultDetailPage() {
                                             width: `${Math.min(utilization, 100)}%`
                                         }}
                                     />
+                                    {/* Cap Marker */}
+                                    <div
+                                        className="absolute top-0 bottom-0 w-0.5 bg-gray-500/50"
+                                        style={{ left: `${utilizationCap}%` }}
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* 3. Medium Row */}
+                    {/* 3. Secondary Row: TVL + Chart */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-400 mb-0.5">TVL</p>
-                                <p className="text-xl font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
+                        {/* TVL Card */}
+                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex flex-col justify-center">
+                            <div className="flex items-center justify-between mb-1">
+                                <p className="text-sm text-gray-400">TVL</p>
                                 <p className="text-xs text-gray-500">Total Deposits</p>
+                            </div>
+                            <div className="flex items-baseline justify-between">
+                                <p className="text-lg font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                <p className="text-sm text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
                             </div>
                         </div>
 
-                        <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-400 mb-0.5">Lifetime PnL</p>
-                                <p className="text-xl font-bold text-green-400">
-                                    {vaultData?.sharePrice
-                                        ? (() => {
-                                            const pct = (vaultData.sharePrice - 1.0) * 100;
-                                            if (Math.abs(pct) < 0.005) return "0.00%";
-                                            return pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
-                                        })()
-                                        : "0.00%"}
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-green-400/80">Net of fees</p>
-                                <p className="text-xs text-gray-500">Since inception</p>
-                            </div>
+                        {/* Payoff Chart Wrapper - Lower contrast */}
+                        <div className="brightness-75 saturate-50 hover:brightness-100 hover:saturate-100 transition-all duration-500">
+                            {underlyingPrice && strikePrice ? (
+                                <PayoffChart spotPrice={underlyingPrice} strikePrice={strikePrice} premiumRange={vaultMeta.premiumRange} />
+                            ) : (
+                                <div className="h-full rounded-xl bg-gray-800/20 border border-gray-800/40 animate-pulse" />
+                            )}
                         </div>
                     </div>
 
-
-                    {/* Payoff Chart */}
-                    {underlyingPrice && strikePrice && (
-                        <PayoffChart spotPrice={underlyingPrice} strikePrice={strikePrice} premiumRange={vaultMeta.premiumRange} />
-                    )}
-
-                    {/* Vault State Banner - Manual Epoch Mode */}
+                    {/* Vault State Banner */}
                     {isLive && (
                         <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${vaultState === "ACTIVE"
                             ? "bg-green-500/10 border border-green-500/20"
@@ -445,19 +399,14 @@ export default function VaultDetailPage() {
                                 <>
                                     <Play className="w-4 h-4 text-green-400" />
                                     <span className="text-green-300">
-                                        <strong>Exposure Active</strong> — Epoch #{epoch} · Withdrawals queued until settlement
+                                        <strong>RFQ-filled exposure active</strong> — settlement finalizes at epoch end
                                     </span>
                                 </>
                             ) : (
                                 <>
                                     <Zap className="w-4 h-4 text-blue-400" />
                                     <span className="text-blue-300">
-                                        {tvlTokens > 0
-                                            ? timeUntilEpochEnd === 0
-                                                ? <><strong className="text-green-400">{vaultMeta.isDemo ? "Preparing Auto-Roll" : "Awaiting Manual Roll"}</strong> — Epoch #{epoch} · Ready for execution</>
-                                                : <><strong>Auto-rolling</strong> — Epoch #{epoch} · Keeper will roll at next schedule</>
-                                            : `Live on Devnet.Deposit to start Epoch #${epoch}.`
-                                        }
+                                        <strong>Auto-rolling</strong> — Epoch #{epoch} · Keeper will roll at next schedule
                                     </span>
                                 </>
                             )}
