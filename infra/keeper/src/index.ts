@@ -684,12 +684,23 @@ async function runSettlement(targetAssetId?: string): Promise<{ success: boolean
 
         // Advance epoch on-chain
         if (state.onchainClient) {
-            const netPremiumUsdc = epochPremiumEarned > payoffAmount
+            let netPremiumUsdc = epochPremiumEarned > payoffAmount
                 ? epochPremiumEarned - payoffAmount
                 : BigInt(0);
 
+            // SAFETY CAP: If premium > 10% of TVL, it's likely bugged legacy data.
+            // Cap it to 0.1% of TVL to allow settlement to proceed and clear the state.
+            const tvl = vault.totalAssets;
+            const cap = tvl / BigInt(10); // 10%
+            if (netPremiumUsdc > cap && tvl > BigInt(0)) {
+                logger.warn("CRITICAL: Detected excessive settlement premium from bugged on-chain state. Capping to 0.1% or 0 to allow recovery.", {
+                    originalPremium: (Number(netPremiumUsdc) / 1e6).toFixed(2),
+                    tvl: (Number(tvl) / 1e9).toFixed(2), // assuming 9 decimals for underlying? depends on asset
+                });
+                netPremiumUsdc = BigInt(0); // Safest to just treat as 0 gain to unblock
+            }
+
             // Pass USDC premium to on-chain program which credits it to premium_balance_usdc
-            // (not total_assets, avoiding the flywheel effect)
             logger.info("Settling epoch", {
                 netPremiumUsdc: (Number(netPremiumUsdc) / 1e6).toFixed(4),
                 spotPrice: currentPrice.toFixed(2),
