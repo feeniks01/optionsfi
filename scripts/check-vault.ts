@@ -25,7 +25,7 @@ async function checkVault(name: string) {
     }
 
     // Load IDL and decode
-    const idlPath = path.join(__dirname, "..", "programs", "vault", "target", "idl", "vault.json");
+    const idlPath = path.join(__dirname, "..", "target", "idl", "vault.json");
     const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
 
     const dummyWallet = {
@@ -36,7 +36,7 @@ async function checkVault(name: string) {
     const provider = new AnchorProvider(connection, dummyWallet, {});
     const program = new Program(idl, provider);
 
-    const vault = await program.account.vault.fetch(pda);
+    const vault = await (program.account as any).vault.fetch(pda);
 
     console.log("Epoch:", vault.epoch.toString());
     console.log("Total Assets:", (Number(vault.totalAssets) / 1e6).toFixed(2), "NVDAx");

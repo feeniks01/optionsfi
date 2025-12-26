@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer, MintTo, Burn};
+use anchor_spl::associated_token::AssociatedToken;
 
 declare_id!("A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94");
 
@@ -252,6 +253,40 @@ pub mod vault {
             ),
             amount,
         )?;
+
+        // Calculate and claim proportional USDC premiums
+        // Claimable = (shares / effective_shares) * premium_balance_usdc
+        let premium_balance = vault.premium_balance_usdc;
+        if premium_balance > 0 {
+            let user_premium_share = (shares as u128)
+                .checked_mul(premium_balance as u128)
+                .ok_or(VaultError::Overflow)?
+                .checked_div(effective_shares as u128)
+                .ok_or(VaultError::Overflow)? as u64;
+
+            if user_premium_share > 0 {
+                // Transfer USDC to user
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(), // Standard token program for USDC
+                        Transfer {
+                            from: ctx.accounts.vault_premium_account.to_account_info(),
+                            to: ctx.accounts.user_premium_account.to_account_info(),
+                            authority: vault.to_account_info(),
+                        },
+                        signer_seeds,
+                    ),
+                    user_premium_share,
+                )?;
+
+                // Deduct from vault state
+                vault.premium_balance_usdc = vault.premium_balance_usdc
+                    .checked_sub(user_premium_share)
+                    .ok_or(VaultError::Overflow)?;
+                
+                msg!("Withdrew premium share: {} USDC", user_premium_share);
+            }
+        }
 
         // Update vault state
         vault.total_assets = vault.total_assets
@@ -868,10 +903,28 @@ pub struct ProcessWithdrawal<'info> {
     )]
     pub share_escrow: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        address = vault.premium_token_account
+    )]
+    pub vault_premium_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = premium_mint,
+        associated_token::authority = user
+    )]
+    pub user_premium_account: Account<'info, TokenAccount>,
+
+    #[account(address = vault.premium_mint)]
+    pub premium_mint: Account<'info, Mint>,
+
     #[account(mut)]
     pub user: Signer<'info>,
 
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

@@ -1,6 +1,12 @@
+
 import { Connection, PublicKey, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { Program, AnchorProvider, Wallet, BN } from "@coral-xyz/anchor";
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import {
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    getAssociatedTokenAddress,
+    createAssociatedTokenAccountInstruction
+} from "@solana/spl-token";
 import vaultIdl from "../anchor/vault_idl.json";
 
 // Program IDs on devnet
@@ -373,11 +379,21 @@ export async function buildProcessWithdrawalTransaction(
     const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
     const shareMint = vaultAccount.shareMint as PublicKey;
     const vaultTokenAccount = vaultAccount.vaultTokenAccount as PublicKey;
+    const premiumMint = vaultAccount.premiumMint as PublicKey;
+    const vaultPremiumAccount = vaultAccount.premiumTokenAccount as PublicKey;
 
     // The withdrawal was requested in a previous epoch
-    // We need to find it - typically the previous epoch
+    // We need to find it - typically the previous epoch (or earlier if multiple passed)
+    // NOTE: In production, we should find the exact request epoch. For now, we assume user calls this
+    // mainly for the most recent pending request.
     const currentEpoch = Number(vaultAccount.epoch);
     const requestEpoch = currentEpoch > 0 ? currentEpoch - 1 : 0;
+
+    // Check if we need to search for the request (account for skipped epochs)
+    // Ideally we'd look up the account, but the PDA depends on the epoch.
+    // For MVP we assume standard flow (request N, process N+1).
+    // If the user has a request from N-2, it might still be there unprocessed.
+    // NOTE: This logic might need refinement if users wait long periods.
     const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, requestEpoch);
     const [shareEscrowPda] = deriveShareEscrowPda(vaultPda);
 
@@ -386,7 +402,27 @@ export async function buildProcessWithdrawalTransaction(
         wallet.publicKey
     );
 
+    const userPremiumAccount = await getAssociatedTokenAddress(
+        premiumMint,
+        wallet.publicKey
+    );
+
     const tx = new Transaction();
+
+    // Check if user premium account exists
+    const userPremiumAccountInfo = await connection.getAccountInfo(userPremiumAccount);
+    if (!userPremiumAccountInfo) {
+        tx.add(
+            createAssociatedTokenAccountInstruction(
+                wallet.publicKey,
+                userPremiumAccount,
+                wallet.publicKey,
+                premiumMint,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID
+            )
+        );
+    }
 
     const processWithdrawalIx = await program.methods
         .processWithdrawal()
@@ -397,8 +433,13 @@ export async function buildProcessWithdrawalTransaction(
             vaultTokenAccount: vaultTokenAccount,
             userTokenAccount: userTokenAccount,
             shareEscrow: shareEscrowPda,
+            vaultPremiumAccount: vaultPremiumAccount,
+            userPremiumAccount: userPremiumAccount,
+            premiumMint: premiumMint,
             user: wallet.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
         })
         .instruction();
 
