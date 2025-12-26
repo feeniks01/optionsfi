@@ -460,9 +460,6 @@ export default function VaultDetailPage() {
                         {/* Panel Header */}
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-sm text-gray-400"></span>
-                            <button onClick={refresh} className="text-gray-500 hover:text-gray-300">
-                                <RefreshCw className="w-4 h-4" />
-                            </button>
                         </div>
 
                         {/* Tabs */}
@@ -506,6 +503,9 @@ export default function VaultDetailPage() {
                                                     <div className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer hover:text-gray-400" onClick={() => setDepositAmount(formatTokenAmount(userUnderlyingBalance))}>
                                                         <Wallet className="w-3 h-3" />
                                                         <span>{formatTokenAmount(userUnderlyingBalance)} {vaultMeta.symbol}</span>
+                                                        <button onClick={(e) => { e.stopPropagation(); refresh(); }} className="hover:text-white transition-colors ml-0.5">
+                                                            <RefreshCw className="w-3 h-3" />
+                                                        </button>
                                                     </div>
                                                 )}
                                                 <button
