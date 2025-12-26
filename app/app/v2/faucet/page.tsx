@@ -44,8 +44,8 @@ export default function FaucetPage() {
 
         setFetchingBalances(true);
         try {
-            // SOL balance
-            const balance = await connection.getBalance(publicKey);
+            // SOL balance - use finalized commitment for fresh data
+            const balance = await connection.getBalance(publicKey, 'finalized');
             setSolBalance(balance / 1e9);
 
             // Get the mint from vault if we don't have it
@@ -58,7 +58,7 @@ export default function FaucetPage() {
             if (mint) {
                 try {
                     const ata = await getAssociatedTokenAddress(mint, publicKey);
-                    const tokenBalance = await connection.getTokenAccountBalance(ata);
+                    const tokenBalance = await connection.getTokenAccountBalance(ata, 'finalized');
                     setNvdaxBalance(Number(tokenBalance.value.uiAmount));
                 } catch {
                     setNvdaxBalance(0);
