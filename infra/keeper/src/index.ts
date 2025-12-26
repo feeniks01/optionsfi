@@ -517,6 +517,11 @@ async function checkVaultLifecycle(): Promise<void> {
             // 2. Roll Check: If not active (idle) -> Roll immediately
             // This ensures we don't wait for a full duration of "empty" time after settlement
             else if (!isLive) {
+                // Skip empty vaults - nothing to roll
+                if (vault.totalAssets === BigInt(0)) {
+                    continue;
+                }
+
                 logger.info(`Lifecycle: Idle check for ${assetId}`, {
                     now, lastRoll, minDuration, isRunning: state.isRunning, hasPremium
                 });
