@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Loader2, TrendingUp, Wallet, Clock, Vault } from "lucide-react";
+import { Loader2, TrendingUp, Wallet, Clock, Vault, Briefcase } from "lucide-react";
 import { useAllVaults } from "../../hooks/useVault";
 import { VAULT_CONFIG, computeTier, getPythFeedId } from "../../lib/vault-config";
 import { useState, useEffect } from "react";
@@ -226,7 +226,7 @@ export default function V2EarnDashboard() {
             {connected && (
                 <section className="space-y-4">
                     <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                        <Wallet className="w-5 h-5" />
+                        <Briefcase className="w-5 h-5" />
                         Your Positions
                     </h2>
                     {/* Show positions from vaults where user has shares */}

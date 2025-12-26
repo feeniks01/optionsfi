@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-    ArrowLeft, Zap, Shield, Clock, TrendingUp, Users,
-    Code, Terminal, BookOpen, ChevronRight, Menu
+    ArrowLeft, Zap, Shield, Clock, TrendingUp,
+    Code, Terminal, ChevronRight, Menu,
+    LayoutGrid, Wallet, Landmark, FileCode
 } from "lucide-react";
 
 /**
@@ -23,10 +24,10 @@ export default function V2DocsPage() {
     };
 
     const navItems = [
-        { id: "intro", label: "Introduction", icon: <BookOpen className="w-4 h-4" /> },
-        { id: "depositor", label: "For Depositors", icon: <Users className="w-4 h-4" /> },
-        { id: "market-maker", label: "For Market Makers", icon: <Terminal className="w-4 h-4" /> },
-        { id: "contracts", label: "Contracts", icon: <Code className="w-4 h-4" /> },
+        { id: "intro", label: "Introduction", icon: <LayoutGrid className="w-4 h-4" /> },
+        { id: "depositor", label: "For Depositors", icon: <Wallet className="w-4 h-4" /> },
+        { id: "market-maker", label: "For Market Makers", icon: <Landmark className="w-4 h-4" /> },
+        { id: "contracts", label: "Contracts", icon: <FileCode className="w-4 h-4" /> },
     ];
 
     return (
@@ -63,8 +64,8 @@ export default function V2DocsPage() {
                                 key={item.id}
                                 onClick={() => navigate(item.id)}
                                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${view === item.id
-                                        ? "bg-gray-800 text-white font-medium shadow-sm"
-                                        : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                                    ? "bg-gray-800 text-white font-medium shadow-sm"
+                                    : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
                                     }`}
                             >
                                 {item.icon}
@@ -74,8 +75,8 @@ export default function V2DocsPage() {
                     </nav>
 
                     <div className="mt-auto pt-6 border-t border-gray-800/50">
-                        <a href="https://github.com/optionsfi" target="_blank" className="flex items-center gap-2 text-xs text-gray-500 hover:text-white mb-2 font-mono">
-                            <Code className="w-3 h-3" /> github.com/optionsfi
+                        <a href="https://github.com/feeniks01/optionsfi" target="_blank" className="flex items-center gap-2 text-xs text-gray-500 hover:text-white mb-2 font-mono">
+                            <Code className="w-3 h-3" /> github.com/feeniks01/optionsfi
                         </a>
                     </div>
                 </div>
