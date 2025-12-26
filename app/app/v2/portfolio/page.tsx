@@ -816,14 +816,9 @@ export default function PortfolioPage() {
                                         <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-base font-medium text-white" />
                                     </div>
                                 )}
-                                <div className="pt-2 border-t border-gray-700/30">
-                                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">Strategy</p>
-                                    <ul className="text-[10px] text-gray-400 space-y-0.5 list-disc pl-3">
-                                        <li>Covered Calls on {positions[0]?.symbol || "xAsset"}</li>
-                                        <li>Weekly expiry</li>
-                                        <li>Cash-settled</li>
-                                    </ul>
-                                </div>
+                                <p className="text-[10px] text-gray-500/70 pt-2">
+                                    Weekly covered call strategy on {positions[0]?.symbol || "xAsset"}
+                                </p>
                             </div>
                         </div>
 
