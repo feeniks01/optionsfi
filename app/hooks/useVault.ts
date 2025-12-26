@@ -85,7 +85,17 @@ export function useVault(assetId: string): UseVaultReturn {
     // Fetch vault and user data
     const fetchData = useCallback(async (forceRefresh = false) => {
         try {
-            const cacheKey = `optionsfi_vault_v1_${assetId}_${wallet.publicKey?.toString() || 'anon'}`;
+            const config = VAULTS[assetId.toLowerCase()];
+            if (!config) {
+                if (isInitialLoad.current) {
+                    isInitialLoad.current = false;
+                    setLoading(false);
+                }
+                return;
+            }
+
+            // Use resolved assetId for cache key to prevent stale data after vault migrations
+            const cacheKey = `optionsfi_vault_v2_${config.assetId}_${wallet.publicKey?.toString() || 'anon'}`;
             const now = Date.now();
             const TTL = settings.refreshInterval; // Use dynamic TTL based on settings
 
@@ -124,15 +134,7 @@ export function useVault(assetId: string): UseVaultReturn {
                 ? assetId.charAt(0).toUpperCase() + assetId.slice(1, -1).toUpperCase() + 'x'
                 : assetId;
 
-            const config = VAULTS[assetId.toLowerCase()];
-            if (!config) {
-                setVaultData(null);
-                if (isInitialLoad.current) {
-                    isInitialLoad.current = false;
-                    setLoading(false);
-                }
-                return;
-            }
+            // config was already fetched and validated at start of function
 
             const data = await fetchVaultData(connection, config.assetId);
 
