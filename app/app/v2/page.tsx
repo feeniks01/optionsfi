@@ -138,10 +138,10 @@ export default function V2EarnDashboard() {
             <section className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-background border border-blue-500/20 p-6">
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold text-foreground mb-3">
-                        Earn premium on xStocks
+                        Earn weekly option premium on xStocks
                     </h1>
                     <p className="text-muted-foreground text-lg mb-6 max-w-xl">
-                        Deposit xStocks. Vault sells covered calls. You collect premiums automatically.
+                        Deposit xStocks. Vault writes covered calls. Premiums settle automatically.
                     </p>
 
                     {/* Stats Row */}

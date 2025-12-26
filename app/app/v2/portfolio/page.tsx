@@ -787,31 +787,31 @@ export default function PortfolioPage() {
                     </div>
 
                     {/* Sidebar - Merged Overview + Next + Holdings */}
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden">
+                    <div className="bg-gray-800/30 rounded-xl border border-gray-700/30 overflow-hidden">
                         {/* Overview Section */}
-                        <div className="p-4 space-y-4">
-                            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">Overview</h3>
+                        <div className="p-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Overview</h3>
+                                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded">Strategy: Covered Calls</span>
+                            </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div>
-                                    <p className="text-xs text-gray-500 mb-1">Value</p>
-                                    <p className="text-xl font-bold text-white">{formatCurrency(stats.totalVaultValue)}</p>
+                                    <p className="text-[10px] text-gray-500 mb-0.5">Value</p>
+                                    <p className="text-lg font-bold text-white">{formatCurrency(stats.totalVaultValue)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-gray-500 mb-1">Premium Earned</p>
-                                    <p className="text-xl font-bold text-green-400">{formatCurrency(stats.totalAccrued)}</p>
+                                    <p className="text-[10px] text-gray-500 mb-0.5">Income Earned</p>
+                                    <p className="text-lg font-bold text-emerald-400">{formatCurrency(stats.totalAccrued)}</p>
+                                    {stats.totalVaultValue > 0 && (
+                                        <p className="text-[9px] text-gray-500 mt-0.5">≈ {((stats.totalAccrued / stats.totalVaultValue) * 100 * 52).toFixed(1)}% APY</p>
+                                    )}
                                 </div>
                                 {nextRoll && (
-                                    <>
-                                        <div>
-                                            <p className="text-xs text-gray-500 mb-1">Next Settlement</p>
-                                            <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-lg font-medium text-white" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-gray-500 mb-1">Withdraw Unlock</p>
-                                            <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-lg font-medium text-white" />
-                                        </div>
-                                    </>
+                                    <div>
+                                        <p className="text-[10px] text-gray-500 mb-0.5">Settlement / Unlock</p>
+                                        <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-base font-medium text-white" />
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -946,19 +946,27 @@ export default function PortfolioPage() {
 
 // Chart Mode Selector
 function ChartModeSelector({ mode, setMode }: { mode: ChartMode; setMode: (m: ChartMode) => void }) {
+    const labels: Record<ChartMode, { name: string; sublabel: string }> = {
+        premium: { name: "Income", sublabel: "Options premium accrued" },
+        value: { name: "Value", sublabel: "Portfolio market value" },
+        total_return: { name: "Total Return", sublabel: "Cumulative % gain" }
+    };
     return (
-        <div className="flex items-center gap-1">
-            {(["premium", "value", "total_return"] as const).map(m => (
-                <button key={m} onClick={() => setMode(m)}
-                    className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${mode === m
-                        ? m === "total_return" ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
-                            : m === "premium" ? "bg-green-500/20 text-green-400 border border-green-500/40"
-                                : "bg-gray-700 text-white"
-                        : "text-gray-500 hover:text-gray-300"
-                        }`}>
-                    {m === "total_return" ? "Total Return" : m}
-                </button>
-            ))}
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+                {(["premium", "value", "total_return"] as const).map(m => (
+                    <button key={m} onClick={() => setMode(m)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${mode === m
+                            ? m === "total_return" ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
+                                : m === "premium" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                                    : "bg-gray-700 text-white border border-gray-600"
+                            : "text-gray-500 hover:text-gray-300"
+                            }`}>
+                        {labels[m].name}
+                    </button>
+                ))}
+            </div>
+            <p className="text-[10px] text-gray-500 ml-0.5">{labels[mode].sublabel}</p>
         </div>
     );
 }
@@ -1010,10 +1018,10 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
     }));
 
     const eventLabels: Record<string, { label: string; color: string }> = {
-        deposit: { label: "Deposit", color: "bg-green-500" },
+        deposit: { label: "Deposit", color: "bg-cyan-500" },
         withdraw: { label: "Withdraw", color: "bg-orange-500" },
         roll: { label: "Epoch Roll", color: "bg-blue-500" },
-        premium: { label: "Premium Paid", color: "bg-purple-500" },
+        premium: { label: "Income", color: "bg-emerald-500" },
     };
 
     return (
@@ -1062,10 +1070,10 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                             onMouseEnter={() => setHoveredEvent(i)} onMouseLeave={() => setHoveredEvent(null)}>
                             <div className={`w-2 h-2 rounded-full ${cfg.color} ring-2 ring-white/20 cursor-pointer transition-transform ${isHovered ? "scale-150" : ""}`} />
                             {isHovered && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
-                                    <div className="font-medium">{cfg.label}</div>
-                                    <div>{chartMode === "total_return" ? `${(m.value - 100).toFixed(2)}%` : formatCurrency(m.value)}</div>
-                                    <div className="text-gray-500">{m.date.toLocaleString()}</div>
+                                <div className={`absolute left-1/2 -translate-x-1/2 px-2.5 py-2 bg-gray-900/95 border border-gray-600 rounded-lg text-xs text-white whitespace-nowrap z-50 shadow-xl backdrop-blur-sm ${m.y < 30 ? 'top-full mt-3' : 'bottom-full mb-3'}`}>
+                                    <div className="font-semibold text-white">{cfg.label}</div>
+                                    <div className="text-lg font-bold mt-0.5">{chartMode === "total_return" ? `${(m.value - 100).toFixed(2)}%` : formatCurrency(m.value)}</div>
+                                    <div className="text-gray-400 text-[10px] mt-1">{m.date.toLocaleDateString()} {m.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </div>
                             )}
                         </div>
@@ -1104,12 +1112,12 @@ function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, 
                     </div>
                     <div>
                         <p className="font-semibold text-white text-sm">{meta.symbol} Covered Call Vault</p>
-                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 overflow-hidden">
-                            <span>Accrued: <span className="text-green-400">{formatCurrency(position.accruedPremium)}</span></span>
-                            <span className="mx-0.5">•</span>
-                            <span className="flex items-center gap-1 bg-gray-800/50 px-1.5 py-0.5 rounded">
-                                Next Settlement: <VaultTimer targetTime={position.epochEndTimestamp} />
-                            </span>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                            <span>Income: <span className="text-emerald-400 font-medium">{formatCurrency(position.accruedPremium)}</span></span>
+                            <div className="flex-1 max-w-16 h-1 bg-gray-700 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500/60 rounded-full" style={{ width: `${position.epochProgress}%` }} />
+                            </div>
+                            <span className="text-gray-500"><VaultTimer targetTime={position.epochEndTimestamp} /></span>
                         </div>
                     </div>
                 </Link>
