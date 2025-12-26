@@ -362,10 +362,12 @@ export async function buildRequestWithdrawalTransaction(
 /**
  * Build a process withdrawal transaction (after epoch settles)
  */
+// Build a process withdrawal transaction (after epoch settles)
 export async function buildProcessWithdrawalTransaction(
     connection: Connection,
     wallet: Wallet,
-    assetId: string
+    assetId: string,
+    requestEpoch?: number
 ): Promise<Transaction> {
     const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
     const program = getVaultProgram(provider);
@@ -382,19 +384,12 @@ export async function buildProcessWithdrawalTransaction(
     const premiumMint = vaultAccount.premiumMint as PublicKey;
     const vaultPremiumAccount = vaultAccount.premiumTokenAccount as PublicKey;
 
-    // The withdrawal was requested in a previous epoch
-    // We need to find it - typically the previous epoch (or earlier if multiple passed)
-    // NOTE: In production, we should find the exact request epoch. For now, we assume user calls this
-    // mainly for the most recent pending request.
+    // Use provided epoch or default to previous epoch
+    // NOTE: It is best practice to pass the exact epoch from pendingWithdrawal state
     const currentEpoch = Number(vaultAccount.epoch);
-    const requestEpoch = currentEpoch > 0 ? currentEpoch - 1 : 0;
+    const targetEpoch = requestEpoch !== undefined ? requestEpoch : (currentEpoch > 0 ? currentEpoch - 1 : 0);
 
-    // Check if we need to search for the request (account for skipped epochs)
-    // Ideally we'd look up the account, but the PDA depends on the epoch.
-    // For MVP we assume standard flow (request N, process N+1).
-    // If the user has a request from N-2, it might still be there unprocessed.
-    // NOTE: This logic might need refinement if users wait long periods.
-    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, requestEpoch);
+    const [withdrawalPda] = deriveWithdrawalPda(vaultPda, wallet.publicKey, targetEpoch);
     const [shareEscrowPda] = deriveShareEscrowPda(vaultPda);
 
     const userTokenAccount = await getAssociatedTokenAddress(

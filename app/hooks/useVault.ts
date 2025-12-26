@@ -309,7 +309,8 @@ export function useVault(assetId: string): UseVaultReturn {
             const tx = await buildProcessWithdrawalTransaction(
                 connection,
                 anchorWallet,
-                config.assetId
+                config.assetId,
+                pendingWithdrawal?.requestEpoch // Pass the known epoch
             );
 
             toast.loading("Please sign the transaction...", { id: toastId });
