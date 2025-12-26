@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Coins, PieChart, Activity, BookOpen, Settings, Droplets, Radio } from "lucide-react";
+import { Coins, PieChart, Activity, BookOpen, Settings, Droplets, Logs } from "lucide-react";
 
 const WalletMultiButton = dynamic(
     () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
@@ -38,7 +38,7 @@ export default function V2Layout({ children }: { children: React.ReactNode }) {
     // Utility navigation (bottom section)
     const utilityNavItems = [
         { href: "/v2/faucet", label: "Faucet", icon: Droplets },
-        { href: "/v2/logs", label: "Logs", icon: Radio },
+        { href: "/v2/logs", label: "Logs", icon: Logs },
         { href: "/v2/docs", label: "Docs", icon: BookOpen },
         { href: "/v2/settings", label: "Settings", icon: Settings },
     ];

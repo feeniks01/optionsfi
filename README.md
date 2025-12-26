@@ -4,7 +4,7 @@ Settlement and pricing layer where products like vaults source real option premi
 
 ## Site
 
-https://optionsfi.vercel.app/v2/
+https://www.optionsfi.xyz/v2/
 
 ## Video
 

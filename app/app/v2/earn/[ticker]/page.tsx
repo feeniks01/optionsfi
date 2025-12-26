@@ -20,8 +20,8 @@ function PayoffChart({ spotPrice, strikePrice, premiumRange }: { spotPrice: numb
     return (
         <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
             <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-gray-400 uppercase tracking-wide">Epoch Payoff</span>
-                <span className="text-xs text-gray-500">Max upside: +{capGain.toFixed(0)}%</span>
+                <span className="text-xs text-gray-400 uppercase tracking-wide">Premium Range</span>
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Upside Capped</span>
             </div>
             <div className="relative h-14">
                 <div className="absolute inset-0 flex items-end gap-0.5">
@@ -40,9 +40,7 @@ function PayoffChart({ spotPrice, strikePrice, premiumRange }: { spotPrice: numb
                 </div>
                 <div className="absolute left-[47%] top-0 bottom-0 w-0.5 bg-white/40" />
                 <div className="absolute left-[47%] top-0 -translate-x-1/2 text-[10px] text-white/70 bg-gray-900/90 px-1.5 py-0.5 rounded">now</div>
-                <div className="absolute left-2 bottom-1 text-xs bg-gray-900/90 px-1.5 py-0.5 rounded">
-                    <span className="text-green-400 font-medium">+{premiumRange[0]}-{premiumRange[1]}%</span>
-                </div>
+                {/* Fixed Labels Removed */}
                 <div className="absolute right-2 top-1 text-xs bg-gray-900/90 px-1.5 py-0.5 rounded">
                     <span className="text-yellow-400">cap ${strikePrice.toFixed(0)}</span>
                 </div>
@@ -234,25 +232,45 @@ export default function VaultDetailPage() {
             </div>
 
             {/* Header */}
-            <div className="flex justify-between items-start">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold text-white">{vaultMeta.name}</h1>
-                        {isLive && (
-                            <span
-                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
-                                style={{
-                                    backgroundColor: theme.accentSoft,
-                                    color: theme.accent,
-                                    borderColor: theme.accentBorder
-                                }}
-                            >
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />Live
-                            </span>
-                        )}
-                        {vaultLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
-                    </div>
-                    <p className="text-sm text-gray-400 mt-1">{vaultMeta.strategy} · {tier}</p>
+            <div className="flex justify-between items-start mb-1">
+                <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-white">{vaultMeta.symbol} Vault</h1>
+                    {isLive && (
+                        <span
+                            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+                            style={{
+                                backgroundColor: theme.accentSoft,
+                                color: theme.accent,
+                                borderColor: theme.accentBorder
+                            }}
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />Live
+                        </span>
+                    )}
+                    {vaultLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
+                </div>
+            </div>
+
+            {/* Top Stat Pills - Configuration Row */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+                {/* RFQ Chip */}
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60 text-gray-300' : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    }`}>
+                    {rfq.routerLoading ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                        rfq.routerOnline ? <Radio className="w-3 h-3 text-green-500" /> : <AlertCircle className="w-3 h-3" />}
+                    {rfq.routerOnline ? "RFQ Online" : "RFQ Offline"}
+                </div>
+
+                {/* Strike Chip */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
+                    <span>Strike</span>
+                    <span className="text-white font-semibold">{vaultMeta.strikeOffset * 100}% OTM</span>
+                </div>
+
+                {/* Utilization Cap Chip */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
+                    <span>Utilization Cap</span>
+                    <span className="text-white font-semibold">{utilizationCap}%</span>
                 </div>
             </div>
 
@@ -260,29 +278,7 @@ export default function VaultDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Left Column */}
                 <div className="lg:col-span-2 space-y-4">
-                    {/* KPI Row */}
-                    {/* 1. Mini Chips Row */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* RFQ Chip */}
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${rfq.routerOnline ? 'bg-gray-900/60 border-gray-800/60 text-gray-300' : 'bg-red-500/10 border-red-500/30 text-red-400'
-                            }`}>
-                            {rfq.routerLoading ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                                rfq.routerOnline ? <Radio className="w-3 h-3 text-green-500" /> : <AlertCircle className="w-3 h-3" />}
-                            {rfq.routerOnline ? "RFQ Online" : "RFQ Offline"}
-                        </div>
 
-                        {/* Strike Chip */}
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
-                            <span>Strike</span>
-                            <span className="text-white font-semibold">{vaultMeta.strikeOffset * 100}% OTM</span>
-                        </div>
-
-                        {/* Cap Chip */}
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 border border-gray-800/60 text-xs text-gray-300">
-                            <span>Cap</span>
-                            <span className="text-yellow-400 font-semibold">+{vaultMeta.premiumRange[1]}%</span>
-                        </div>
-                    </div>
 
                     {/* 2. Primary Grid (3 Cols) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -304,7 +300,7 @@ export default function VaultDetailPage() {
                                         <p className="text-4xl font-bold text-emerald-400 mt-2">
                                             ${yourShare.toFixed(2)}
                                         </p>
-                                        <p className="text-xs text-emerald-500/80 mt-1">Earned from RFQ-filled option settlement</p>
+                                        <p className="text-xs text-emerald-500/80 mt-1">Earned from RFQ-filled option premiums</p>
                                     </div>
                                     <div className="border-t border-gray-700/50 pt-2 mt-2">
                                         <div className="flex justify-between items-center text-xs">
@@ -323,9 +319,10 @@ export default function VaultDetailPage() {
                                     <Info className="w-3.5 h-3.5 text-gray-500" />
                                 </p>
                                 <div className="space-y-1.5 mt-3">
-                                    <p className="text-sm font-medium text-gray-200">RFQ filled</p>
-                                    <p className="text-sm font-medium text-gray-200">Exposure active</p>
-                                    <p className="text-xs text-gray-500">Settlement at epoch end</p>
+                                    <p className="text-sm font-medium text-gray-200">RFQ Filled</p>
+                                    <p className="text-sm font-medium text-gray-200">Option Exposure Active</p>
+                                    <p className="text-xs text-gray-500">Settlement at Epoch End</p>
+                                    <p className="text-[10px] text-gray-600">Exposure recorded on-chain</p>
                                 </div>
                             </div>
                         </div>
@@ -340,7 +337,7 @@ export default function VaultDetailPage() {
                                 <p className="text-2xl font-bold text-white mt-1">
                                     {exposureTokens.toFixed(2)} <span className="text-lg text-gray-500 font-normal">{vaultMeta.symbol}</span>
                                 </p>
-                                <p className="text-xs text-gray-500 mt-0.5">Utilization cap: {utilizationCap}%</p>
+                                <p className="text-xs text-gray-500 mt-0.5">Notional covered in current epoch</p>
                             </div>
 
                             <div className="mt-3">
@@ -371,7 +368,7 @@ export default function VaultDetailPage() {
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-4 flex flex-col justify-center">
                             <div className="flex items-center justify-between mb-1">
                                 <p className="text-sm text-gray-400">TVL</p>
-                                <p className="text-xs text-gray-500">Total Deposits</p>
+                                <p className="text-xs text-gray-500"></p>
                             </div>
                             <div className="flex items-baseline justify-between">
                                 <p className="text-lg font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
@@ -555,7 +552,7 @@ export default function VaultDetailPage() {
                                 {/* Summary line */}
                                 {strikePrice && (
                                     <p className="text-sm text-gray-400 text-center">
-                                        Withdraw unlocks at epoch end. Upside capped above {formatPrice(strikePrice)}.
+                                        Withdrawals unlock at epoch end. Upside capped above {formatPrice(strikePrice)}.
                                     </p>
                                 )}
 

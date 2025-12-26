@@ -27,7 +27,7 @@ const VAULT_METADATA: Record<string, {
     demonvdax6: { name: "Demo NVDAx", symbol: "NVDAx", logo: "/nvidiax_logo.png", accentColor: "#76B900", tier: "Demo", strikeOtm: 10, maxCap: 10 },
 };
 
-type ChartMode = "performance" | "value" | "premium";
+type ChartMode = "total_return" | "value" | "premium";
 
 interface Position {
     vaultId: string;
@@ -361,13 +361,12 @@ export default function PortfolioPage() {
     const { prices: oraclePrices, loading: pricesLoading, getPrice } = usePythPrices();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [chartMode, setChartMode] = useState<ChartMode>("performance");
+    const [chartMode, setChartMode] = useState<ChartMode>("premium");
     const [chartRange, setChartRange] = useState<"1D" | "1W" | "1M" | "ALL">("1W");
-    const [showBaseline, setShowBaseline] = useState(true);
     const [chartExpanded, setChartExpanded] = useState(false);
     const [activityExpanded, setActivityExpanded] = useState(false);
     const [activityPanelOpen, setActivityPanelOpen] = useState(true); // Side panel visibility
-    const [showPnlBreakdown, setShowPnlBreakdown] = useState(false);
+    // const [showPnlBreakdown, setShowPnlBreakdown] = useState(false); // Hidden feature
     const [hoveredEvent, setHoveredEvent] = useState<number | null>(null);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [managingPosition, setManagingPosition] = useState<Position | null>(null);
@@ -464,27 +463,18 @@ export default function PortfolioPage() {
     }, [vaults, getPrice, costBasisByVault]);
 
     // Stats from real data with P&L breakdown
+    // Stats from real data
     const stats = useMemo(() => {
         const totalVaultValue = positions.reduce((sum, p) => sum + p.sharesUsd, 0);
         const totalAccrued = positions.reduce((sum, p) => sum + p.accruedPremium, 0);
         const totalCostBasis = positions.reduce((sum, p) => sum + p.costBasis, 0);
         const totalUnrealizedPnl = totalVaultValue - totalCostBasis;
         const netDeposits = totalCostBasis;
-        const estApy = positions.length > 0
-            ? positions.reduce((sum, p) => sum + p.vaultApy, 0) / positions.length
-            : 0;
+        // const estApy = ... (Removed)
         const performancePercent = netDeposits > 0 ? (totalUnrealizedPnl / netDeposits) * 100 : 0;
 
-        // P&L Breakdown (estimates - in production these would come from on-chain data)
-        // For now we decompose the total P&L into components
-        const underlyingMoveImpact = totalUnrealizedPnl * 0.85; // ~85% from spot move
-        const premiumEarned = totalAccrued; // Realized + accrued premium
-        const overlayImpact = totalUnrealizedPnl * 0.12; // Cap/assignment effects
-        const fees = totalUnrealizedPnl * 0.03 * -1; // ~3% fees (negative)
-
         return {
-            totalVaultValue, totalAccrued, totalUnrealizedPnl, netDeposits, estApy, performancePercent,
-            breakdown: { underlyingMoveImpact, premiumEarned, overlayImpact, fees }
+            totalVaultValue, totalAccrued, totalUnrealizedPnl, netDeposits, performancePercent
         };
     }, [positions]);
 
@@ -549,7 +539,7 @@ export default function PortfolioPage() {
         // Only add a start point if there's actual pre-period data
         if (hasPrePeriodData) {
             let startValue = 0;
-            if (chartMode === "performance") {
+            if (chartMode === "total_return") {
                 startValue = deposits > 0 ? 100 : 100; // Always start at 100% baseline
             } else if (chartMode === "value") {
                 startValue = balance;
@@ -559,7 +549,7 @@ export default function PortfolioPage() {
             // Start from a point just before the first event at 100% baseline (performance) or 0 (value)
             const firstEventTime = firstEventInRange.timestamp.getTime();
             const startPointTime = Math.max(startTime, firstEventTime - 60000); // 1 min before first event
-            if (chartMode === "performance") {
+            if (chartMode === "total_return") {
                 points.push({ value: 100, date: new Date(startPointTime) });
             } else if (chartMode === "value") {
                 points.push({ value: 0, date: new Date(startPointTime) });
@@ -570,7 +560,7 @@ export default function PortfolioPage() {
         allActivities.filter(a => a.timestamp.getTime() >= startTime).forEach(a => {
             const val = (a.amount || 0) * oraclePrice;
 
-            if (chartMode === "performance") {
+            if (chartMode === "total_return") {
                 if (a.type === "deposit") { balance += val; deposits += val; }
                 else if (a.type === "withdraw") { balance -= val; deposits -= val; }
                 const perfValue = deposits > 0 ? 100 * (1 + (balance - deposits) / deposits) : 100;
@@ -584,7 +574,7 @@ export default function PortfolioPage() {
         });
 
         // End point
-        if (chartMode === "performance") {
+        if (chartMode === "total_return") {
             const finalPerf = stats.netDeposits > 0 ? 100 * (1 + stats.performancePercent / 100) : 100;
             points.push({ value: finalPerf, date: new Date(now) });
         } else if (chartMode === "value") {
@@ -639,7 +629,7 @@ export default function PortfolioPage() {
     const timeRange = maxTime - minTime || 1;
 
     // Display values
-    const displayValue = chartMode === "performance"
+    const displayValue = chartMode === "total_return"
         ? formatPercent(stats.performancePercent)
         : chartMode === "premium"
             ? formatCurrency(stats.totalAccrued)
@@ -693,10 +683,6 @@ export default function PortfolioPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-                                <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="rounded" />
-                                Show Net Deposits
-                            </label>
                             {(["1D", "1W", "1M", "ALL"] as const).map(r => (
                                 <button key={r} onClick={() => setChartRange(r)} className={`px-3 py-1 rounded text-sm ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white"}`}>{r}</button>
                             ))}
@@ -713,7 +699,7 @@ export default function PortfolioPage() {
                         ) : (
                             <div className="h-full w-full overflow-hidden rounded-lg">
                                 <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
-                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
+                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode}
                                     hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
                             </div>
                         )}
@@ -754,10 +740,6 @@ export default function PortfolioPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <label className="hidden md:flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer">
-                                        <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} className="w-3 h-3 rounded" />
-                                        Baseline
-                                    </label>
                                     {(["1D", "1W", "1M", "ALL"] as const).map(r => (
                                         <button key={r} onClick={() => setChartRange(r)} className={`px-2 py-0.5 rounded text-xs font-medium ${chartRange === r ? "bg-gray-700 text-white" : "text-gray-500 hover:text-gray-300"}`}>{r}</button>
                                     ))}
@@ -768,7 +750,7 @@ export default function PortfolioPage() {
                             {/* Chart Body */}
                             <div className="p-3" style={{ height: "220px" }}>
                                 <ChartContent chartData={chartData} chartMin={chartMin} chartMax={chartMax} minTime={minTime} timeRange={timeRange}
-                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode} showBaseline={showBaseline}
+                                    netDeposits={stats.netDeposits} formatCurrency={formatCurrency} chartMode={chartMode}
                                     hoveredEvent={hoveredEvent} setHoveredEvent={setHoveredEvent} premiumBars={premiumBars} />
                             </div>
 
@@ -796,29 +778,32 @@ export default function PortfolioPage() {
                     {/* Sidebar - Merged Overview + Next + Holdings */}
                     <div className="bg-gray-800/40 rounded-xl border border-gray-700/40 overflow-hidden">
                         {/* Overview Section */}
-                        <div className="p-4 space-y-3">
-                            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Overview</h3>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex justify-between"><span className="text-gray-400">Value</span><span className="font-semibold text-white">{formatCurrency(stats.totalVaultValue)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Net Deposits</span><span className="text-gray-300">{formatCurrency(stats.netDeposits)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">P&L</span><span className={stats.totalUnrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}>{formatCurrency(stats.totalUnrealizedPnl)} ({formatPercent(stats.performancePercent)})</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Est. APY</span><span className="text-green-400">{stats.estApy.toFixed(1)}%</span></div>
+                        <div className="p-4 space-y-4">
+                            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">Overview</h3>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-1">Value</p>
+                                    <p className="text-xl font-bold text-white">{formatCurrency(stats.totalVaultValue)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-1">Premium Earned</p>
+                                    <p className="text-xl font-bold text-green-400">{formatCurrency(stats.totalAccrued)}</p>
+                                </div>
+                                {nextRoll && (
+                                    <>
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-1">Next Settlement</p>
+                                            <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-lg font-medium text-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-1">Withdraw Unlock</p>
+                                            <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-lg font-medium text-white" />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
-
-                        {/* Next Roll Section */}
-                        {nextRoll && (
-                            <div className="border-t border-gray-700/40 p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-xs font-medium text-blue-400 uppercase tracking-wide flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Next</h3>
-                                    <VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-xs font-medium text-blue-400" />
-                                </div>
-                                <div className="space-y-1.5 text-sm">
-                                    <div className="flex justify-between"><span className="text-gray-400">Est. Distribution</span><span className="text-green-400">{formatCurrency(stats.totalAccrued)}</span></div>
-                                    <div className="flex justify-between"><span className="text-gray-400">Withdraw Unlock</span><VaultTimer targetTime={nextRoll.epochEndTimestamp} className="text-gray-300" /></div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Holdings Section */}
                         {positions.length > 1 && (
@@ -882,48 +867,7 @@ export default function PortfolioPage() {
                         </div>
 
                         {/* P&L Breakdown - Expandable under positions */}
-                        <div className="mt-3">
-                            <button
-                                onClick={() => setShowPnlBreakdown(!showPnlBreakdown)}
-                                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                            >
-                                <ChevronRight className={`w-3 h-3 transition-transform ${showPnlBreakdown ? "rotate-90" : ""}`} />
-                                What drove your P&L?
-                            </button>
-                            {showPnlBreakdown && (
-                                <div className="mt-2 bg-gray-800/40 rounded-xl border border-gray-700/40 p-4">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                        <div>
-                                            <p className="text-gray-500 text-xs mb-1">Underlying Move</p>
-                                            <p className={stats.breakdown.underlyingMoveImpact >= 0 ? "text-green-400" : "text-red-400"}>
-                                                {formatCurrency(stats.breakdown.underlyingMoveImpact)}
-                                            </p>
-                                            <p className="text-[10px] text-gray-600">NVDAx spot change</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-500 text-xs mb-1">Premium Earned</p>
-                                            <p className="text-green-400">{formatCurrency(stats.breakdown.premiumEarned)}</p>
-                                            <p className="text-[10px] text-gray-600">Realized + accrued</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-500 text-xs mb-1">Option Overlay</p>
-                                            <p className={stats.breakdown.overlayImpact >= 0 ? "text-blue-400" : "text-orange-400"}>
-                                                {formatCurrency(stats.breakdown.overlayImpact)}
-                                            </p>
-                                            <p className="text-[10px] text-gray-600">Cap/assignment</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-500 text-xs mb-1">Fees</p>
-                                            <p className="text-red-400">{formatCurrency(stats.breakdown.fees)}</p>
-                                            <p className="text-[10px] text-gray-600">Mgmt + performance</p>
-                                        </div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-600 mt-3 pt-2 border-t border-gray-700/40">
-                                        * Vault P&L = Current NAV − Net Deposits. Breakdown is estimated from strategy model.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+
                     </div>
 
                     {/* Activity Panel - 1/3 width (collapsible sidebar) */}
@@ -993,15 +937,15 @@ export default function PortfolioPage() {
 function ChartModeSelector({ mode, setMode }: { mode: ChartMode; setMode: (m: ChartMode) => void }) {
     return (
         <div className="flex items-center gap-1">
-            {(["performance", "value", "premium"] as const).map(m => (
+            {(["premium", "value", "total_return"] as const).map(m => (
                 <button key={m} onClick={() => setMode(m)}
                     className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${mode === m
-                        ? m === "performance" ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
+                        ? m === "total_return" ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
                             : m === "premium" ? "bg-green-500/20 text-green-400 border border-green-500/40"
                                 : "bg-gray-700 text-white"
                         : "text-gray-500 hover:text-gray-300"
                         }`}>
-                    {m === "performance" ? "P&L %" : m}
+                    {m === "total_return" ? "Total Return" : m}
                 </button>
             ))}
         </div>
@@ -1009,10 +953,10 @@ function ChartModeSelector({ mode, setMode }: { mode: ChartMode; setMode: (m: Ch
 }
 
 // Chart Content
-function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDeposits, formatCurrency, chartMode, showBaseline, hoveredEvent, setHoveredEvent, premiumBars }: {
+function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDeposits, formatCurrency, chartMode, hoveredEvent, setHoveredEvent, premiumBars }: {
     chartData: { value: number; date: Date; event?: string; eventType?: string }[];
     chartMin: number; chartMax: number; minTime: number; timeRange: number; netDeposits: number;
-    formatCurrency: (v: number) => string; chartMode: ChartMode; showBaseline: boolean;
+    formatCurrency: (v: number) => string; chartMode: ChartMode;
     hoveredEvent: number | null; setHoveredEvent: (v: number | null) => void;
     premiumBars: { epoch: number; premium: number; yieldPercent: number }[];
 }) {
@@ -1046,7 +990,7 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
     const paddedMin = chartMin - yRange * 0.1;
     const paddedMax = chartMax + yRange * 0.15;
     const displayRange = paddedMax - paddedMin;
-    const depositsY = chartMode === "value" && showBaseline ? 100 - ((netDeposits - paddedMin) / displayRange) * 100 : -1;
+    const depositsY = -1; // Removed baseline display
 
     const eventMarkers = chartData.filter(d => d.event).map(d => ({
         x: ((d.date.getTime() - minTime) / timeRange) * 100,
@@ -1081,11 +1025,6 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                         <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
                     ))}
 
-                    {/* Net Deposits baseline */}
-                    {depositsY >= 0 && depositsY <= 100 && (
-                        <line x1="0" y1={depositsY} x2="100" y2={depositsY} stroke="rgba(250, 200, 100, 0.5)" strokeWidth="1" strokeDasharray="4,4" vectorEffect="non-scaling-stroke" />
-                    )}
-
                     {/* Area */}
                     <path d={`M 0 100 ${chartData.map(d => {
                         const x = Math.max(0, Math.min(100, ((d.date.getTime() - minTime) / timeRange) * 100));
@@ -1114,7 +1053,7 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
                             {isHovered && (
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                                     <div className="font-medium">{cfg.label}</div>
-                                    <div>{chartMode === "performance" ? `${(m.value - 100).toFixed(2)}%` : formatCurrency(m.value)}</div>
+                                    <div>{chartMode === "total_return" ? `${(m.value - 100).toFixed(2)}%` : formatCurrency(m.value)}</div>
                                     <div className="text-gray-500">{m.date.toLocaleString()}</div>
                                 </div>
                             )}
@@ -1125,16 +1064,11 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
 
             {/* Labels */}
             <div className="absolute top-1 right-1 text-[9px] text-gray-500 bg-gray-900/50 px-1 py-0.5 rounded">
-                {chartMode === "performance" ? `${(chartMax - 100).toFixed(1)}%` : formatCurrency(chartMax)}
+                {chartMode === "total_return" ? `${(chartMax - 100).toFixed(1)}%` : formatCurrency(chartMax)}
             </div>
             <div className="absolute bottom-5 right-1 text-[9px] text-gray-500 bg-gray-900/50 px-1 py-0.5 rounded">
-                {chartMode === "performance" ? `${(chartMin - 100).toFixed(1)}%` : formatCurrency(chartMin)}
+                {chartMode === "total_return" ? `${(chartMin - 100).toFixed(1)}%` : formatCurrency(chartMin)}
             </div>
-            {
-                depositsY >= 10 && depositsY <= 90 && (
-                    <div className="absolute left-1 text-[8px] text-yellow-400/60" style={{ top: `${depositsY}%`, transform: "translateY(-50%)" }}>Net Deposits</div>
-                )
-            }
             <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 text-[9px] text-gray-600">
                 <span>{new Date(minTime).toLocaleDateString()}</span>
                 <span>Now</span>
@@ -1158,21 +1092,16 @@ function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, 
                         <img src={meta.logo} alt={meta.symbol} className="w-5 h-5" />
                     </div>
                     <div>
-                        <p className="font-semibold text-white text-sm">{meta.name}</p>
-                        <p className="text-[10px] text-gray-500">{meta.symbol} • {position.vaultApy.toFixed(1)}% APY</p>
+                        <p className="font-semibold text-white text-sm">{meta.symbol} Covered Call Vault</p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 overflow-hidden">
+                            <span>Accrued: <span className="text-green-400">{formatCurrency(position.accruedPremium)}</span></span>
+                            <span className="mx-0.5">•</span>
+                            <span className="flex items-center gap-1 bg-gray-800/50 px-1.5 py-0.5 rounded">
+                                Next Settlement: <VaultTimer targetTime={position.epochEndTimestamp} />
+                            </span>
+                        </div>
                     </div>
                 </Link>
-
-                <div className="hidden md:flex items-center gap-6 flex-shrink-0 text-[10px]">
-                    <div className="text-center w-20">
-                        <p className="text-gray-500">Accrued</p>
-                        <p className="text-green-400">{formatCurrency(position.accruedPremium)}</p>
-                    </div>
-                    <div className="text-center w-16">
-                        <p className="text-gray-500">Next</p>
-                        <VaultTimer targetTime={position.epochEndTimestamp} className="text-white" />
-                    </div>
-                </div>
 
                 <div className="flex items-center gap-3">
                     <div className="text-right">
