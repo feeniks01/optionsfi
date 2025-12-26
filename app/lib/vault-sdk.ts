@@ -178,8 +178,17 @@ export async function fetchVaultData(
                 ? (epochPremiumEarned / tvlUsd) * 100
                 : 0;
 
-            // Annualize assuming weekly epochs
-            const apy = epochYieldPercent * 52;
+            // Calculate epochs per year based on actual epoch duration
+            // Use on-chain minEpochDuration, with fallback (180s for demo, 604800s for prod)
+            let epochDuration = Number(vaultAccount.minEpochDuration || 0);
+            if (epochDuration === 0) {
+                epochDuration = assetId.toLowerCase().includes("demo") ? 180 : 604800;
+            }
+            const secondsPerYear = 365.25 * 24 * 60 * 60;
+            const epochsPerYear = secondsPerYear / epochDuration;
+
+            // Annualize based on actual epoch frequency
+            const apy = epochYieldPercent * epochsPerYear;
             const tvl = tvlTokens;
 
             return {
