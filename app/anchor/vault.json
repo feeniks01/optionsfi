@@ -196,6 +196,61 @@
       "args": []
     },
     {
+      "name": "close_orphaned_token_account",
+      "docs": [
+        "Close an orphaned token account that was owned by a vault PDA",
+        "This is used to clean up old share escrows, vault token accounts, etc.",
+        "after a vault has been force-closed, enabling reuse of asset IDs.",
+        "",
+        "The caller must provide the correct asset_id that was used to derive the vault PDA.",
+        "The vault PDA must NOT exist anymore (force-closed)."
+      ],
+      "discriminator": [
+        232,
+        127,
+        173,
+        13,
+        92,
+        144,
+        116,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "vault_pda",
+          "docs": [
+            "We verify this matches the derived PDA in the instruction"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_account",
+          "docs": [
+            "The token account to close (share escrow, vault token account, etc.)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority receiving the lamports"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "asset_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "close_vault",
       "docs": [
         "Close a vault and recover rent (authority only)",
@@ -1843,6 +1898,11 @@
       "code": 6024,
       "name": "UnauthorizedForceClose",
       "msg": "Caller is not the vault authority"
+    },
+    {
+      "code": 6025,
+      "name": "VaultStillExists",
+      "msg": "Vault still exists - close it first before cleaning up token accounts"
     }
   ],
   "types": [

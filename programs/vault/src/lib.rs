@@ -787,6 +787,55 @@ pub mod vault {
         msg!("Force closed vault {} - returned {} lamports", asset_id, vault_lamports);
         Ok(())
     }
+
+    /// Close an orphaned token account that was owned by a vault PDA
+    /// This is used to clean up old share escrows, vault token accounts, etc.
+    /// after a vault has been force-closed, enabling reuse of asset IDs.
+    /// 
+    /// The caller must provide the correct asset_id that was used to derive the vault PDA.
+    /// The vault PDA must NOT exist anymore (force-closed).
+    pub fn close_orphaned_token_account(
+        ctx: Context<CloseOrphanedTokenAccount>,
+        asset_id: String,
+    ) -> Result<()> {
+        let token_account = &ctx.accounts.token_account;
+        let authority = &ctx.accounts.authority;
+
+        // Derive vault PDA - this is the owner of the orphaned token account
+        let (vault_pda, bump) = Pubkey::find_program_address(
+            &[b"vault", asset_id.as_bytes()],
+            ctx.program_id,
+        );
+
+        // Verify the vault no longer exists
+        require!(
+            ctx.accounts.vault_pda.data_is_empty(),
+            VaultError::VaultStillExists
+        );
+
+        // Verify the vault PDA matches
+        require!(
+            ctx.accounts.vault_pda.key() == vault_pda,
+            VaultError::InvalidVaultPda
+        );
+
+        // Close the token account using vault PDA as signer
+        let seeds = &[b"vault".as_ref(), asset_id.as_bytes(), &[bump]];
+        let signer_seeds = &[&seeds[..]];
+
+        token::close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::CloseAccount {
+                account: token_account.to_account_info(),
+                destination: authority.to_account_info(),
+                authority: ctx.accounts.vault_pda.to_account_info(),
+            },
+            signer_seeds,
+        ))?;
+
+        msg!("Closed orphaned token account {} for vault {}", token_account.key(), asset_id);
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -1272,6 +1321,27 @@ pub struct ForceCloseVault<'info> {
     pub authority: Signer<'info>,
 }
 
+/// Context for closing orphaned token accounts after vault force-close
+/// This allows reusing asset IDs by cleaning up leftover PDAs
+#[derive(Accounts)]
+#[instruction(asset_id: String)]
+pub struct CloseOrphanedTokenAccount<'info> {
+    /// CHECK: The vault PDA - must be empty (force-closed)
+    /// We verify this matches the derived PDA in the instruction
+    #[account(mut)]
+    pub vault_pda: UncheckedAccount<'info>,
+
+    /// The token account to close (share escrow, vault token account, etc.)
+    #[account(mut)]
+    pub token_account: Account<'info, TokenAccount>,
+
+    /// Authority receiving the lamports
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
 #[derive(Accounts)]
 pub struct CreateShareMetadata<'info> {
     #[account(
@@ -1457,4 +1527,6 @@ pub enum VaultError {
     InvalidParameter,
     #[msg("Caller is not the vault authority")]
     UnauthorizedForceClose,
+    #[msg("Vault still exists - close it first before cleaning up token accounts")]
+    VaultStillExists,
 }
