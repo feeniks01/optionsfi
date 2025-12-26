@@ -19,8 +19,11 @@ function PayoffChart({ spotPrice, strikePrice, premiumRange }: { spotPrice: numb
 
     return (
         <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-gray-400 uppercase tracking-wide">Premium Range</span>
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <span className="text-xs text-gray-400 uppercase tracking-wide">Premium Range</span>
+                    <span className="text-[9px] text-gray-600 ml-1">Per epoch</span>
+                </div>
                 <span className="text-xs text-gray-500 uppercase tracking-wide">Upside Capped</span>
             </div>
             <div className="relative h-14">
@@ -294,7 +297,10 @@ export default function VaultDetailPage() {
                                     <div>
                                         <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
                                             USDC Premium Earned
-                                            <span title="Your share of premium earned from RFQ-filled options this epoch" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
+                                            <span className="relative group cursor-help">
+                                                <Info className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300" />
+                                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[10px] text-gray-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">Your share of premium earned from RFQ-filled options</span>
+                                            </span>
                                         </p>
                                         <p className="text-4xl font-bold text-emerald-400 mt-2">
                                             ${yourShare.toFixed(2)}
@@ -315,7 +321,10 @@ export default function VaultDetailPage() {
                             <div>
                                 <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
                                     Epoch Status
-                                    <span title="Current epoch lifecycle: RFQ → Exposure → Settlement" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
+                                    <span className="relative group cursor-help">
+                                        <Info className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300" />
+                                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[10px] text-gray-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">RFQ → Exposure → Settlement</span>
+                                    </span>
                                 </p>
                                 <div className="space-y-1.5 mt-3">
                                     <p className="text-sm font-medium text-gray-200">RFQ Filled</p>
@@ -330,13 +339,16 @@ export default function VaultDetailPage() {
                         <div className="rounded-xl bg-gray-800/40 border border-gray-700/40 p-5 flex flex-col justify-between min-h-[140px]">
                             <div>
                                 <p className="text-sm text-gray-400 mb-1 flex items-center gap-1.5">
-                                    Options Sold
-                                    <span title="Total notional exposure sold via RFQ this epoch" className="cursor-help"><Info className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300" /></span>
+                                    Option Exposure Sold
+                                    <span className="relative group cursor-help">
+                                        <Info className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300" />
+                                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[10px] text-gray-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">Total notional exposure sold via RFQ</span>
+                                    </span>
                                 </p>
                                 <p className="text-2xl font-semibold text-white mt-1">
                                     {exposureTokens.toFixed(2)} <span className="text-lg text-gray-500 font-normal">{vaultMeta.symbol}</span>
                                 </p>
-                                <p className="text-xs text-gray-400 mt-0.5">Notional covered in current epoch</p>
+                                <p className="text-xs text-gray-400 mt-0.5">Notional covered this epoch</p>
                             </div>
 
                             <div className="mt-3">
@@ -372,14 +384,12 @@ export default function VaultDetailPage() {
                             <div className="flex flex-col gap-1">
                                 <div className="flex justify-between items-start">
                                     <p className="text-lg font-bold text-white">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                                    <div className="text-right">
-                                        <p className="text-sm text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
-                                        <p className="text-[10px] text-gray-500">Vault collateral</p>
-                                    </div>
+                                    <p className="text-sm text-blue-400">{tvlTokens.toFixed(2)} {vaultMeta.symbol}</p>
                                 </div>
-                                <p className="text-[11px] text-gray-500 mt-1">
-                                    Utilized: {exposureTokens.toFixed(2)} {vaultMeta.symbol} ({utilization.toFixed(0)}%)
-                                </p>
+                                <div className="text-[11px] text-gray-500 space-y-0.5">
+                                    <p>Vault collateral</p>
+                                    <p>{exposureTokens.toFixed(2)} {vaultMeta.symbol} exposure utilized ({utilization.toFixed(0)}%)</p>
+                                </div>
                             </div>
                         </div>
 
@@ -403,7 +413,7 @@ export default function VaultDetailPage() {
                                 <>
                                     <Play className="w-4 h-4 text-green-400" />
                                     <span className="text-green-300">
-                                        <strong>RFQ-filled exposure active</strong> — settlement finalizes at epoch end
+                                        <strong>Option exposure active</strong> — settlement finalizes at epoch end
                                     </span>
                                 </>
                             ) : (

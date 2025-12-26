@@ -44,90 +44,96 @@ export function useWalletActivity() {
                 "confirmed"
             );
 
-            // Filter for transactions that might involve our program
+            // Fetch transactions in PARALLEL batches for speed
+            const BATCH_SIZE = 10;
             const relevantActivities: WalletActivity[] = [];
 
-            for (const sig of signatures) {
-                try {
-                    // Get transaction details
-                    const tx = await connection.getParsedTransaction(
-                        sig.signature,
-                        { maxSupportedTransactionVersion: 0 }
-                    );
+            for (let i = 0; i < signatures.length; i += BATCH_SIZE) {
+                const batch = signatures.slice(i, i + BATCH_SIZE);
 
-                    if (!tx || !tx.meta) continue;
-
-                    const accountKeys = tx.transaction.message.accountKeys;
-
-                    // Parse the vault ID from account keys solely based on ACTIVE vaults
-                    let vaultId: string | undefined;
-                    let involvesActiveVault = false;
-
-                    for (const [id, config] of Object.entries(VAULTS)) {
-                        const [vaultPda] = deriveVaultPda(config.assetId);
-
-                        // Check if this vault PDA is in the transaction accounts
-                        const isInTx = accountKeys.some(
-                            (key) => key.pubkey.toString() === vaultPda.toString()
+                const txPromises = batch.map(async (sig) => {
+                    try {
+                        const tx = await connection.getParsedTransaction(
+                            sig.signature,
+                            { maxSupportedTransactionVersion: 0 }
                         );
 
-                        if (isInTx) {
-                            vaultId = id;
-                            involvesActiveVault = true;
-                            break;
-                        }
-                    }
+                        if (!tx || !tx.meta) return null;
 
-                    if (!involvesActiveVault) continue;
+                        const accountKeys = tx.transaction.message.accountKeys;
 
-                    // Parse the transaction type from logs
-                    const logs = tx.meta.logMessages || [];
-                    let type: WalletActivity["type"] = "unknown";
-                    let amount: number | undefined;
+                        // Parse the vault ID from account keys solely based on ACTIVE vaults
+                        let vaultId: string | undefined;
+                        let involvesActiveVault = false;
 
-                    for (const log of logs) {
-                        if (log.includes("Instruction: Deposit")) {
-                            type = "deposit";
-                        } else if (log.includes("Instruction: RequestWithdrawal")) {
-                            type = "withdrawal_request";
-                        } else if (log.includes("Instruction: ProcessWithdrawal")) {
-                            type = "withdraw";
-                        }
-                    }
+                        for (const [id, config] of Object.entries(VAULTS)) {
+                            const [vaultPda] = deriveVaultPda(config.assetId);
 
-                    // Try to extract amount from token balance changes
-                    const preBalances = tx.meta.preTokenBalances || [];
-                    const postBalances = tx.meta.postTokenBalances || [];
+                            const isInTx = accountKeys.some(
+                                (key) => key.pubkey.toString() === vaultPda.toString()
+                            );
 
-                    for (let i = 0; i < postBalances.length; i++) {
-                        const post = postBalances[i];
-                        const pre = preBalances.find(
-                            (p) => p.accountIndex === post.accountIndex
-                        );
-
-                        if (post.owner === publicKey.toString()) {
-                            const postAmount = parseFloat(post.uiTokenAmount.uiAmountString || "0");
-                            const preAmount = pre ? parseFloat(pre.uiTokenAmount.uiAmountString || "0") : 0;
-                            const change = Math.abs(postAmount - preAmount);
-                            if (change > 0) {
-                                amount = change;
+                            if (isInTx) {
+                                vaultId = id;
+                                involvesActiveVault = true;
+                                break;
                             }
                         }
-                    }
 
-                    relevantActivities.push({
-                        signature: sig.signature,
-                        type,
-                        timestamp: new Date((sig.blockTime || 0) * 1000),
-                        slot: sig.slot,
-                        success: sig.err === null,
-                        amount,
-                        vaultId,
-                    });
-                } catch (txErr) {
-                    // Skip individual transaction errors
-                    console.warn("Error parsing tx:", sig.signature, txErr);
-                }
+                        if (!involvesActiveVault) return null;
+
+                        // Parse the transaction type from logs
+                        const logs = tx.meta.logMessages || [];
+                        let type: WalletActivity["type"] = "unknown";
+                        let amount: number | undefined;
+
+                        for (const log of logs) {
+                            if (log.includes("Instruction: Deposit")) {
+                                type = "deposit";
+                            } else if (log.includes("Instruction: RequestWithdrawal")) {
+                                type = "withdrawal_request";
+                            } else if (log.includes("Instruction: ProcessWithdrawal")) {
+                                type = "withdraw";
+                            }
+                        }
+
+                        // Try to extract amount from token balance changes
+                        const preBalances = tx.meta.preTokenBalances || [];
+                        const postBalances = tx.meta.postTokenBalances || [];
+
+                        for (let j = 0; j < postBalances.length; j++) {
+                            const post = postBalances[j];
+                            const pre = preBalances.find(
+                                (p) => p.accountIndex === post.accountIndex
+                            );
+
+                            if (post.owner === publicKey!.toString()) {
+                                const postAmount = parseFloat(post.uiTokenAmount.uiAmountString || "0");
+                                const preAmount = pre ? parseFloat(pre.uiTokenAmount.uiAmountString || "0") : 0;
+                                const change = Math.abs(postAmount - preAmount);
+                                if (change > 0) {
+                                    amount = change;
+                                }
+                            }
+                        }
+
+                        return {
+                            signature: sig.signature,
+                            type,
+                            timestamp: new Date((sig.blockTime || 0) * 1000),
+                            slot: sig.slot,
+                            success: sig.err === null,
+                            amount,
+                            vaultId,
+                        } as WalletActivity;
+                    } catch (txErr) {
+                        console.warn("Error parsing tx:", sig.signature, txErr);
+                        return null;
+                    }
+                });
+
+                const results = await Promise.all(txPromises);
+                results.forEach(r => { if (r) relevantActivities.push(r); });
             }
 
             setActivities(relevantActivities);
