@@ -282,26 +282,37 @@ pub mod vault {
                 .ok_or(VaultError::Overflow)? as u64;
 
             if user_premium_share > 0 {
-                // Transfer USDC to user
-                token::transfer(
-                    CpiContext::new_with_signer(
-                        ctx.accounts.token_program.to_account_info(), // Standard token program for USDC
-                        Transfer {
-                            from: ctx.accounts.vault_premium_account.to_account_info(),
-                            to: ctx.accounts.user_premium_account.to_account_info(),
-                            authority: vault.to_account_info(),
-                        },
-                        signer_seeds,
-                    ),
-                    user_premium_share,
-                )?;
-
-                // Deduct from vault state
-                vault.premium_balance_usdc = vault.premium_balance_usdc
-                    .checked_sub(user_premium_share)
-                    .ok_or(VaultError::Overflow)?;
+                // LONG-TERM FIX: Cap claim to actual token balance to handle state/balance drift
+                // This prevents "insufficient funds" errors if state drifts from actual balance
+                let actual_premium_balance = ctx.accounts.vault_premium_account.amount;
+                let capped_premium_share = user_premium_share.min(actual_premium_balance);
                 
-                msg!("Withdrew premium share: {} USDC", user_premium_share);
+                if capped_premium_share > 0 {
+                    // Transfer USDC to user
+                    token::transfer(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(), // Standard token program for USDC
+                            Transfer {
+                                from: ctx.accounts.vault_premium_account.to_account_info(),
+                                to: ctx.accounts.user_premium_account.to_account_info(),
+                                authority: vault.to_account_info(),
+                            },
+                            signer_seeds,
+                        ),
+                        capped_premium_share,
+                    )?;
+
+                    // Deduct capped amount from vault state
+                    vault.premium_balance_usdc = vault.premium_balance_usdc
+                        .checked_sub(capped_premium_share)
+                        .ok_or(VaultError::Overflow)?;
+                    
+                    if capped_premium_share < user_premium_share {
+                        msg!("WARNING: Premium capped from {} to {} due to balance drift", 
+                            user_premium_share, capped_premium_share);
+                    }
+                    msg!("Withdrew premium share: {} USDC", capped_premium_share);
+                }
             }
         }
 
@@ -742,6 +753,27 @@ pub mod vault {
     /// Kept for backwards compatibility but will fail
     pub fn set_utilization_cap(_ctx: Context<SetParam>, _cap_bps: u16) -> Result<()> {
         Err(VaultError::UseTimelockForParamChange.into())
+    }
+
+    /// Reconcile premium_balance_usdc state with actual token account balance
+    /// Use this to fix state drift caused by manual token movements or bugs
+    /// Authority only
+    pub fn reconcile_premium_balance(ctx: Context<ReconcilePremiumBalance>) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        let old_balance = vault.premium_balance_usdc;
+        let actual_balance = ctx.accounts.vault_premium_account.amount;
+        
+        vault.premium_balance_usdc = actual_balance;
+        
+        msg!("Reconciled premium balance: {} -> {}", old_balance, actual_balance);
+        
+        emit!(PremiumBalanceReconciledEvent {
+            vault: vault.key(),
+            old_balance,
+            new_balance: actual_balance,
+        });
+        
+        Ok(())
     }
 
     /// Close a vault and recover rent (authority only)
@@ -1317,6 +1349,24 @@ pub struct SetParam<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ReconcilePremiumBalance<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.asset_id.as_bytes()],
+        bump = vault.bump,
+        has_one = authority
+    )]
+    pub vault: Account<'info, Vault>,
+
+    #[account(
+        address = vault.premium_token_account
+    )]
+    pub vault_premium_account: Account<'info, TokenAccount>,
+
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct CloseVault<'info> {
     #[account(
         mut,
@@ -1492,6 +1542,14 @@ pub struct ParamChangeExecutedEvent {
 pub struct MarketMakerRemovedEvent {
     pub vault: Pubkey,
     pub market_maker: Pubkey,
+}
+
+/// Event emitted when premium balance is reconciled
+#[event]
+pub struct PremiumBalanceReconciledEvent {
+    pub vault: Pubkey,
+    pub old_balance: u64,
+    pub new_balance: u64,
 }
 
 // ============================================================================

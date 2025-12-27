@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-27T00:24:52.006Z",
+  "timestamp": "2025-12-27T00:37:15.814Z",
   "rpcUrl": "https://api.devnet.solana.com",
   "programId": "A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94",
   "results": [
@@ -34,10 +34,10 @@
       "assetId": "DemoV3",
       "pda": "HXQs9HeSdZhbTuf3EZV3WXqqAHfcpESKzSZq5CpSWhbL",
       "status": "OK",
-      "message": "Assets: 450.00, Pending withdrawals: 450000000, Active exposure: 360.00",
+      "message": "Assets: 0.00",
       "hasAssets": true,
-      "hasPendingWithdrawals": true,
-      "isInEpoch": true
+      "hasPendingWithdrawals": false,
+      "isInEpoch": false
     }
   ],
   "hasErrors": false,

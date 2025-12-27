@@ -1374,6 +1374,60 @@
       ]
     },
     {
+      "name": "reconcile_premium_balance",
+      "docs": [
+        "Reconcile premium_balance_usdc state with actual token account balance",
+        "Use this to fix state drift caused by manual token movements or bugs",
+        "Authority only"
+      ],
+      "discriminator": [
+        49,
+        2,
+        198,
+        176,
+        1,
+        107,
+        109,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.asset_id",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_premium_account"
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "record_notional_exposure",
       "docs": [
         "Record notional exposure when an RFQ is filled (fractional options)",
@@ -1907,6 +1961,19 @@
       ]
     },
     {
+      "name": "PremiumBalanceReconciledEvent",
+      "discriminator": [
+        226,
+        48,
+        86,
+        114,
+        81,
+        234,
+        106,
+        18
+      ]
+    },
+    {
       "name": "PremiumCollectedEvent",
       "discriminator": [
         76,
@@ -2277,6 +2344,29 @@
           {
             "name": "unlock_time",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PremiumBalanceReconciledEvent",
+      "docs": [
+        "Event emitted when premium balance is reconciled"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_balance",
+            "type": "u64"
+          },
+          {
+            "name": "new_balance",
+            "type": "u64"
           }
         ]
       }
