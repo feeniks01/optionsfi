@@ -117,7 +117,12 @@ export default function VaultDetailPage() {
 
     // Format helpers
     const decimals = vaultMeta?.decimals || 6;
-    const formatTokenAmount = (amount: number) => (amount / Math.pow(10, decimals)).toFixed(2);
+    // Floor to avoid attempting to deposit/withdraw more than available
+    const formatTokenAmount = (amount: number) => {
+        const value = amount / Math.pow(10, decimals);
+        // Use floor to 2 decimal places to avoid rounding up beyond balance
+        return (Math.floor(value * 100) / 100).toFixed(2);
+    };
     // Calculate strike price: ~10% OTM, rounded to $2.50 increments
     const getRealisticStrike = (spot: number): number => {
         if (!vaultMeta) return spot; // Safety fallback
