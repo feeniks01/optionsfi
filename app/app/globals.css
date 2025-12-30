@@ -186,8 +186,8 @@ input[type="number"] {
   }
 }
 
-/* General constraints to prevent layout shifts */
-.wallet-adapter-button {
+/* General constraints to prevent layout shifts - only for header buttons */
+header .wallet-adapter-button {
   max-width: 140px;
   overflow: hidden;
   white-space: nowrap;
