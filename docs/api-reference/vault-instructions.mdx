@@ -1,0 +1,301 @@
+---
+title: Vault Instructions
+description: 'Build Solana transactions for the vault program'
+---
+
+## Overview
+
+`VaultInstructions` builds Anchor transactions for interacting with the OptionsFi vault program. The SDK includes the bundled IDL, so no external dependencies are needed.
+
+```typescript
+import { VaultInstructions } from '@optionsfi/sdk';
+import { Connection } from '@solana/web3.js';
+
+const connection = new Connection('https://api.devnet.solana.com');
+const vaultIx = new VaultInstructions(connection);
+await vaultIx.initialize();
+```
+
+## Constructor
+
+<ParamField path="connection" type="Connection" required>
+  Solana connection instance
+</ParamField>
+
+<ParamField path="idl" type="object">
+  Optional custom IDL. Uses bundled vault IDL by default.
+</ParamField>
+
+```typescript
+// Use bundled IDL (recommended)
+const vaultIx = new VaultInstructions(connection);
+
+// Or provide custom IDL
+const vaultIx = new VaultInstructions(connection, customIdl);
+```
+
+## Methods
+
+### initialize(wallet?)
+
+Initialize the Anchor program interface.
+
+<ParamField path="wallet" type="anchor.Wallet">
+  Optional wallet for signing. Not required for instruction building.
+</ParamField>
+
+```typescript
+await vaultIx.initialize();
+
+// Or with a wallet for signed transactions
+await vaultIx.initialize(wallet);
+```
+
+<Note>
+  Must be called before using any other methods.
+</Note>
+
+---
+
+### fetchVault(assetId)
+
+Fetch vault account data from the blockchain.
+
+<ParamField path="assetId" type="string" required>
+  Asset identifier (e.g., "NVDAX")
+</ParamField>
+
+```typescript
+const vault = await vaultIx.fetchVault('NVDAX');
+
+if (vault) {
+  console.log('Total Assets:', vault.totalAssets.toString());
+  console.log('Total Shares:', vault.totalShares.toString());
+  console.log('Current Epoch:', vault.epoch.toString());
+  console.log('Exposure:', vault.epochNotionalExposed.toString());
+  console.log('Premium Earned:', vault.epochPremiumEarned.toString());
+}
+```
+
+<ResponseField name="returns" type="Promise<VaultData | null>">
+  Vault data or `null` if not found
+</ResponseField>
+
+---
+
+### recordNotionalExposure(params)
+
+Build instruction to record notional exposure after RFQ execution.
+
+<ParamField path="params" type="RecordExposureParams" required>
+  Exposure parameters
+</ParamField>
+
+```typescript
+import { deriveVaultPda } from '@optionsfi/sdk';
+
+const [vaultPda] = deriveVaultPda('NVDAX');
+
+const ix = await vaultIx.recordNotionalExposure({
+  vault: vaultPda,
+  authority: authorityPublicKey,
+  notionalTokens: BigInt(1000 * 1e6), // 1000 tokens
+  premium: BigInt(50 * 1e6),          // 50 USDC premium
+});
+```
+
+<ResponseField name="returns" type="Promise<TransactionInstruction>">
+  Solana transaction instruction
+</ResponseField>
+
+---
+
+### collectPremium(params)
+
+Build instruction to collect premium from market maker.
+
+<ParamField path="params" type="CollectPremiumParams" required>
+  Collection parameters
+</ParamField>
+
+```typescript
+const ix = await vaultIx.collectPremium({
+  vault: vaultPda,
+  authority: authorityPublicKey,
+  payerTokenAccount: marketMakerTokenAccount,
+  amount: BigInt(50 * 1e6), // 50 USDC
+});
+```
+
+---
+
+### paySettlement(params)
+
+Build instruction to pay settlement to market maker for ITM options.
+
+<ParamField path="params" type="PaySettlementParams" required>
+  Settlement parameters
+</ParamField>
+
+```typescript
+const ix = await vaultIx.paySettlement({
+  vault: vaultPda,
+  authority: authorityPublicKey,
+  recipient: marketMakerPublicKey,
+  recipientTokenAccount: marketMakerTokenAccount,
+  amount: BigInt(100 * 1e6), // 100 USDC settlement
+});
+```
+
+---
+
+### advanceEpoch(params)
+
+Build instruction to advance to the next epoch.
+
+<ParamField path="params" type="AdvanceEpochParams" required>
+  Epoch advance parameters
+</ParamField>
+
+```typescript
+const ix = await vaultIx.advanceEpoch({
+  vault: vaultPda,
+  authority: authorityPublicKey,
+  premiumEarned: BigInt(500 * 1e6), // 500 USDC total earnings
+});
+```
+
+## Static Methods
+
+### calculateSharePrice(vault, decimals?)
+
+Calculate the current share price from vault data.
+
+```typescript
+const price = VaultInstructions.calculateSharePrice(vault);
+console.log('Share price:', price); // e.g., 1.05 = 5% gains
+```
+
+<ResponseField name="returns" type="number">
+  Share price as a decimal (1.0 = 1:1 ratio)
+</ResponseField>
+
+---
+
+### calculateUtilization(vault)
+
+Calculate current utilization percentage.
+
+```typescript
+const utilization = VaultInstructions.calculateUtilization(vault);
+console.log('Utilization:', (utilization * 100).toFixed(2) + '%');
+```
+
+<ResponseField name="returns" type="number">
+  Utilization as decimal (0-1)
+</ResponseField>
+
+---
+
+### canAcceptExposure(vault, additionalNotional)
+
+Check if vault can accept additional exposure within caps.
+
+```typescript
+const canAccept = VaultInstructions.canAcceptExposure(
+  vault,
+  BigInt(500 * 1e6) // 500 tokens additional
+);
+
+if (canAccept) {
+  console.log('Vault has capacity for this trade');
+}
+```
+
+---
+
+### getRemainingCapacity(vault)
+
+Calculate remaining notional capacity.
+
+```typescript
+const capacity = VaultInstructions.getRemainingCapacity(vault);
+console.log('Remaining capacity:', capacity.toString());
+```
+
+## PDA Derivation
+
+```typescript
+import { 
+  deriveVaultPda,
+  deriveWithdrawalPda,
+  deriveShareEscrowPda,
+  deriveWhitelistPda 
+} from '@optionsfi/sdk';
+
+// Vault PDA
+const [vaultPda, vaultBump] = deriveVaultPda('NVDAX');
+
+// Withdrawal request PDA
+const [withdrawalPda] = deriveWithdrawalPda(
+  vaultPda,
+  userPublicKey,
+  epochNumber
+);
+
+// Share escrow PDA
+const [escrowPda] = deriveShareEscrowPda(vaultPda);
+
+// Whitelist PDA
+const [whitelistPda] = deriveWhitelistPda(vaultPda);
+```
+
+## Complete Example
+
+```typescript
+import { 
+  VaultInstructions, 
+  deriveVaultPda,
+  formatUSDC 
+} from '@optionsfi/sdk';
+import { Connection, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+
+async function manageVault() {
+  const connection = new Connection('https://api.devnet.solana.com');
+  const vaultIx = new VaultInstructions(connection);
+  await vaultIx.initialize();
+  
+  // Fetch vault state
+  const vault = await vaultIx.fetchVault('NVDAX');
+  if (!vault) {
+    console.log('Vault not found');
+    return;
+  }
+  
+  // Display vault info
+  console.log('=== Vault Status ===');
+  console.log('Total Assets:', formatUSDC(vault.totalAssets));
+  console.log('Total Shares:', vault.totalShares.toString());
+  console.log('Epoch:', vault.epoch.toString());
+  console.log('Share Price:', VaultInstructions.calculateSharePrice(vault));
+  console.log('Utilization:', (VaultInstructions.calculateUtilization(vault) * 100).toFixed(2) + '%');
+  
+  // Check capacity
+  const additionalExposure = BigInt(1000_000000);
+  if (VaultInstructions.canAcceptExposure(vault, additionalExposure)) {
+    // Build exposure transaction
+    const [vaultPda] = deriveVaultPda('NVDAX');
+    const ix = await vaultIx.recordNotionalExposure({
+      vault: vaultPda,
+      authority: authorityKeypair.publicKey,
+      notionalTokens: additionalExposure,
+      premium: BigInt(50_000000),
+    });
+    
+    // Execute transaction
+    const tx = new Transaction().add(ix);
+    const sig = await sendAndConfirmTransaction(connection, tx, [authorityKeypair]);
+    console.log('Transaction:', sig);
+  }
+}
+```

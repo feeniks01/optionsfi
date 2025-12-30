@@ -1,0 +1,102 @@
+---
+title: Introduction
+description: 'OptionsFi: On-Chain Options Settlement Infrastructure for Solana'
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="OptionsFi Hero"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="OptionsFi Hero"
+/>
+
+## What is OptionsFi?
+
+OptionsFi is the **settlement and pricing layer for on-chain options** on Solana. We connect DeFi protocols to professional market makers via RFQs (Request for Quote), enabling institutional-grade options infrastructure for any vault strategy.
+
+### Key Benefits
+
+<CardGroup cols={2}>
+  <Card title="Real Premiums" icon="dollar-sign">
+    Get competitive options premiums from professional market makers instead of arbitrary yield rates
+  </Card>
+  <Card title="No Slippage" icon="check">
+    Deterministic on-chain execution with quote-locked pricing ensures predictable outcomes
+  </Card>
+  <Card title="Modular Design" icon="puzzle-piece">
+    Works with any vault strategy - covered calls, puts, or custom structured products
+  </Card>
+  <Card title="Transparent Pricing" icon="chart-line">
+    Black-Scholes pricing utilities and Pyth oracle integration for fair value validation
+  </Card>
+</CardGroup>
+
+## How It Works
+
+```mermaid
+sequenceDiagram
+    participant Vault as Your Vault
+    participant SDK as OptionsFi SDK
+    participant Router as RFQ Router
+    participant MM as Market Makers
+    
+    Vault->>SDK: createRFQ(params)
+    SDK->>Router: Broadcast RFQ
+    Router->>MM: Request quotes
+    MM->>Router: Submit quotes
+    Router->>SDK: Stream quotes
+    SDK->>Vault: onQuote callback
+    Vault->>SDK: executeOption(quoteId)
+    SDK->>Vault: Transaction executed
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card
+    title="Covered Call Vaults"
+    icon="arrow-trend-up"
+    href="/examples/covered-call-vault"
+  >
+    Earn premium by selling calls on deposited assets like SOL, ETH, or tokenized stocks
+  </Card>
+  <Card
+    title="Put-Selling Strategies"
+    icon="shield-halved"
+    href="/guides/creating-rfqs"
+  >
+    Generate yield by selling cash-secured puts on assets you want to accumulate
+  </Card>
+  <Card
+    title="Structured Products"
+    icon="layer-group"
+    href="/guides/vault-integration"
+  >
+    Build collars, spreads, and exotic payoffs using the SDK primitives
+  </Card>
+  <Card
+    title="Treasury Management"
+    icon="building-columns"
+    href="/guides/vault-integration"
+  >
+    Optimize DAO treasury yield with institutional options strategies
+  </Card>
+</CardGroup>
+
+## Quick Links
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started in 5 minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Explore the SDK API
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/feeniks01/optionsfi">
+    View source code
+  </Card>
+</CardGroup>

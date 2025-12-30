@@ -1,0 +1,305 @@
+---
+title: RFQ Client
+description: 'WebSocket client for creating RFQs and receiving quotes'
+---
+
+## Overview
+
+The `RFQClient` handles all communication with the OptionsFi RFQ infrastructure via WebSocket.
+
+```typescript
+import { RFQClient, DEVNET_CONFIG } from '@optionsfi/sdk';
+
+const client = new RFQClient(DEVNET_CONFIG);
+await client.connect();
+```
+
+## Constructor
+
+<ParamField path="config" type="RFQConfig" required>
+  Configuration object for the RFQ client
+</ParamField>
+
+```typescript
+interface RFQConfig {
+  rpcUrl: string;
+  rfqRouterUrl: string;
+  programId: string;
+  network?: 'devnet' | 'mainnet-beta';
+  rfqTimeoutMs?: number;
+}
+```
+
+## Methods
+
+### connect()
+
+Connect to the RFQ router WebSocket.
+
+```typescript
+await client.connect();
+```
+
+<ResponseField name="returns" type="Promise<void>">
+  Resolves when connected, rejects on connection failure
+</ResponseField>
+
+---
+
+### disconnect()
+
+Disconnect from the RFQ router.
+
+```typescript
+client.disconnect();
+```
+
+---
+
+### connected (getter)
+
+Check if the client is currently connected.
+
+```typescript
+if (client.connected) {
+  console.log('Ready to create RFQs');
+}
+```
+
+<ResponseField name="returns" type="boolean">
+  `true` if connected to the WebSocket
+</ResponseField>
+
+---
+
+### createRFQ(params)
+
+Create a new RFQ and broadcast to market makers.
+
+<ParamField path="params" type="RFQParams" required>
+  RFQ parameters
+</ParamField>
+
+```typescript
+const rfqId = await client.createRFQ({
+  asset: 'NVDAX',
+  side: 'sell',
+  optionType: 'call',
+  strike: 150,
+  expiry: Math.floor(Date.now() / 1000) + 604800, // 1 week
+  quantity: BigInt(1000 * 1e6),
+  vaultAddress: 'YOUR_VAULT_ADDRESS',
+  premiumFloor: BigInt(10 * 1e6), // Optional: minimum 10 USDC
+});
+```
+
+<ResponseField name="returns" type="Promise<string>">
+  Unique RFQ ID (e.g., `"rfq_1703865600000_abc123"`)
+</ResponseField>
+
+<Warning>
+  Throws an error if not connected. Call `connect()` first.
+</Warning>
+
+---
+
+### subscribeToQuotes(rfqId, callback)
+
+Subscribe to quotes for a specific RFQ.
+
+<ParamField path="rfqId" type="string" required>
+  RFQ ID to subscribe to
+</ParamField>
+
+<ParamField path="callback" type="(quote: Quote) => void" required>
+  Called when a quote is received
+</ParamField>
+
+```typescript
+client.subscribeToQuotes(rfqId, (quote) => {
+  console.log('Quote received:');
+  console.log(`  Market Maker: ${quote.marketMaker}`);
+  console.log(`  Premium: ${Number(quote.premium) / 1e6} USDC`);
+  console.log(`  Expires: ${new Date(quote.expiresAt).toISOString()}`);
+});
+```
+
+---
+
+### unsubscribeFromQuotes(rfqId)
+
+Stop receiving quotes for an RFQ.
+
+```typescript
+client.unsubscribeFromQuotes(rfqId);
+```
+
+---
+
+### executeOption(rfqId, quoteId, wallet)
+
+Accept a quote and execute the option trade on-chain.
+
+<ParamField path="rfqId" type="string" required>
+  RFQ ID
+</ParamField>
+
+<ParamField path="quoteId" type="string" required>
+  Quote ID to accept
+</ParamField>
+
+<ParamField path="wallet" type="object" required>
+  Wallet with `signTransaction` method
+</ParamField>
+
+```typescript
+const signature = await client.executeOption(
+  rfqId,
+  quote.id,
+  wallet
+);
+console.log('Transaction:', signature);
+```
+
+<ResponseField name="returns" type="Promise<string>">
+  Transaction signature
+</ResponseField>
+
+---
+
+### cancelRFQ(rfqId)
+
+Cancel an open RFQ.
+
+```typescript
+await client.cancelRFQ(rfqId);
+```
+
+<Note>
+  Only open RFQs can be cancelled. Filled or expired RFQs will throw an error.
+</Note>
+
+---
+
+### getRFQ(rfqId)
+
+Get an active RFQ by ID.
+
+```typescript
+const rfq = client.getRFQ(rfqId);
+if (rfq) {
+  console.log(`Status: ${rfq.status}`);
+  console.log(`Quotes: ${rfq.quotes.length}`);
+}
+```
+
+<ResponseField name="returns" type="RFQ | undefined">
+  The RFQ object or undefined if not found
+</ResponseField>
+
+---
+
+### getAllRFQs()
+
+Get all active RFQs.
+
+```typescript
+const rfqs = client.getAllRFQs();
+console.log(`Active RFQs: ${rfqs.length}`);
+```
+
+---
+
+### onEvent(callback)
+
+Subscribe to all RFQ events.
+
+```typescript
+const unsubscribe = client.onEvent((event) => {
+  console.log(`Event: ${event.type}`);
+  console.log(`RFQ: ${event.rfqId}`);
+});
+
+// Later: stop receiving events
+unsubscribe();
+```
+
+<ResponseField name="returns" type="() => void">
+  Unsubscribe function
+</ResponseField>
+
+## Event Types
+
+| Event | Description |
+|-------|-------------|
+| `quote_received` | A new quote was received for an RFQ |
+| `rfq_filled` | An RFQ was filled |
+| `rfq_cancelled` | An RFQ was cancelled |
+| `rfq_expired` | An RFQ expired without fill |
+| `connection_error` | WebSocket connection error |
+
+## Complete Example
+
+```typescript
+import { RFQClient, OptionPricing, DEVNET_CONFIG } from '@optionsfi/sdk';
+
+async function tradeOptions() {
+  const client = new RFQClient(DEVNET_CONFIG);
+  
+  // Connect
+  await client.connect();
+  console.log('Connected:', client.connected);
+  
+  // Subscribe to all events
+  client.onEvent((event) => {
+    console.log(`[${event.type}] RFQ: ${event.rfqId}`);
+  });
+  
+  // Create RFQ
+  const rfqId = await client.createRFQ({
+    asset: 'NVDAX',
+    side: 'sell',
+    optionType: 'call',
+    strike: 150,
+    expiry: Math.floor(Date.now() / 1000) + 604800,
+    quantity: BigInt(1000_000000),
+    vaultAddress: 'YOUR_VAULT',
+  });
+  
+  // Collect quotes
+  const quotes: Quote[] = [];
+  
+  client.subscribeToQuotes(rfqId, (quote) => {
+    // Validate against fair value
+    const fair = OptionPricing.blackScholes({
+      spot: 145, strike: 150,
+      timeToExpiry: 7/365,
+      riskFreeRate: 0.05,
+      volatility: 0.45
+    }).call;
+    
+    const validation = OptionPricing.validateQuote(
+      Number(quote.premium) / 1e6, fair
+    );
+    
+    if (validation.isValid) {
+      quotes.push(quote);
+    }
+  });
+  
+  // Wait for quotes
+  await new Promise(r => setTimeout(r, 10000));
+  
+  // Execute best quote
+  if (quotes.length > 0) {
+    const best = quotes.reduce((a, b) => 
+      a.premium > b.premium ? a : b
+    );
+    
+    // const sig = await client.executeOption(rfqId, best.id, wallet);
+    console.log('Best quote:', best.premium.toString());
+  }
+  
+  client.disconnect();
+}
+```

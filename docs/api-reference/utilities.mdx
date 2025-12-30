@@ -1,0 +1,354 @@
+---
+title: Utilities
+description: 'Formatting, validation, and helper utilities'
+---
+
+## Overview
+
+The SDK includes utility functions for formatting, parsing, validation, and common operations.
+
+## Formatting
+
+### formatTokenAmount(amount, decimals, maxDecimals?)
+
+Format a token amount from smallest units to human-readable string.
+
+```typescript
+import { formatTokenAmount } from '@optionsfi/sdk';
+
+formatTokenAmount(1500000n, 6);     // "1.5"
+formatTokenAmount(1234567890n, 9);  // "1.23"
+formatTokenAmount(1000000n, 6, 4);  // "1"
+```
+
+---
+
+### parseTokenAmount(amount, decimals)
+
+Parse a human-readable amount to smallest units.
+
+```typescript
+import { parseTokenAmount } from '@optionsfi/sdk';
+
+parseTokenAmount('1.5', 6);   // 1500000n
+parseTokenAmount('100', 6);   // 100000000n
+parseTokenAmount('0.001', 6); // 1000n
+```
+
+---
+
+### formatUSDC(amount, maxDecimals?) / parseUSDC(amount)
+
+Convenience wrappers for USDC (6 decimals).
+
+```typescript
+import { formatUSDC, parseUSDC } from '@optionsfi/sdk';
+
+formatUSDC(1500000n);   // "1.5"
+parseUSDC('1.5');       // 1500000n
+```
+
+---
+
+### formatPrice(price, decimals?)
+
+Format a number as a price with locale formatting.
+
+```typescript
+import { formatPrice } from '@optionsfi/sdk';
+
+formatPrice(1234.567);     // "1,234.57"
+formatPrice(1000000, 0);   // "1,000,000"
+```
+
+---
+
+### formatPercent(value, decimals?)
+
+Format a decimal as a percentage.
+
+```typescript
+import { formatPercent } from '@optionsfi/sdk';
+
+formatPercent(0.1523);     // "15.23%"
+formatPercent(0.05, 1);    // "5.0%"
+formatPercent(1.5);        // "150.00%"
+```
+
+---
+
+### formatBps(bps)
+
+Format basis points with suffix.
+
+```typescript
+import { formatBps } from '@optionsfi/sdk';
+
+formatBps(500);    // "500 bps"
+formatBps(1234);   // "1,234 bps"
+```
+
+---
+
+### bpsToPercent(bps) / percentToBps(percent)
+
+Convert between basis points and percentages.
+
+```typescript
+import { bpsToPercent, percentToBps } from '@optionsfi/sdk';
+
+bpsToPercent(500);   // 5
+percentToBps(5);     // 500
+```
+
+---
+
+### formatTimestamp(timestamp)
+
+Format Unix timestamp to ISO string.
+
+```typescript
+import { formatTimestamp } from '@optionsfi/sdk';
+
+formatTimestamp(1703865600); // "2023-12-29T12:00:00.000Z"
+```
+
+---
+
+### formatDate(timestamp, options?)
+
+Format timestamp as localized date string.
+
+```typescript
+import { formatDate } from '@optionsfi/sdk';
+
+formatDate(1703865600);
+// "Dec 29, 2023, 12:00 PM"
+```
+
+---
+
+### formatTimeToExpiry(expiryTimestamp)
+
+Format time remaining until expiry.
+
+```typescript
+import { formatTimeToExpiry } from '@optionsfi/sdk';
+
+// Assuming now + 36 hours
+formatTimeToExpiry(expiryTimestamp); // "1d 12h"
+
+// Assuming now + 45 minutes
+formatTimeToExpiry(expiryTimestamp); // "45m"
+
+// Past timestamp
+formatTimeToExpiry(pastTimestamp); // "Expired"
+```
+
+---
+
+### shortenAddress(address, chars?)
+
+Shorten a Solana address for display.
+
+```typescript
+import { shortenAddress } from '@optionsfi/sdk';
+
+shortenAddress('A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94');
+// "A4jg...Fo94"
+
+shortenAddress('A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94', 6);
+// "A4jgqc...UGFo94"
+```
+
+---
+
+### formatRFQId(rfqId)
+
+Format an RFQ ID for display.
+
+```typescript
+import { formatRFQId } from '@optionsfi/sdk';
+
+formatRFQId('rfq_1703865600000_abc123');
+// "RFQ-ABC123"
+```
+
+## Validation
+
+### validateRFQParams(params)
+
+Validate RFQ parameters. Throws `ValidationError` if invalid.
+
+```typescript
+import { validateRFQParams, ValidationError } from '@optionsfi/sdk';
+
+try {
+  validateRFQParams({
+    asset: 'NVDAX',
+    side: 'sell',
+    optionType: 'call',
+    strike: 150,
+    expiry: Math.floor(Date.now() / 1000) + 86400,
+    quantity: BigInt(1000 * 1e6),
+    vaultAddress: 'A4jgqct3...',
+  });
+  console.log('Parameters are valid');
+} catch (error) {
+  if (error instanceof ValidationError) {
+    console.log(`Invalid field: ${error.field}`);
+    console.log(`Error: ${error.message}`);
+  }
+}
+```
+
+**Validates:**
+- `asset` - Non-empty string
+- `side` - Must be "buy" or "sell"
+- `optionType` - Must be "call" or "put"
+- `strike` - Positive number
+- `expiry` - Future timestamp
+- `quantity` - Positive bigint
+- `vaultAddress` - Valid public key format
+
+---
+
+### validateBlackScholesParams(params)
+
+Validate Black-Scholes pricing parameters.
+
+```typescript
+import { validateBlackScholesParams } from '@optionsfi/sdk';
+
+validateBlackScholesParams({
+  spot: 145,
+  strike: 150,
+  timeToExpiry: 0.02,
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+```
+
+**Validates:**
+- `spot` - Positive number
+- `strike` - Positive number
+- `timeToExpiry` - Positive number
+- `volatility` - Positive, <= 5 (500%)
+- `riskFreeRate` - Between -0.1 and 1
+
+---
+
+### validatePublicKey(address, fieldName?)
+
+Validate a Solana public key format.
+
+```typescript
+import { validatePublicKey } from '@optionsfi/sdk';
+
+validatePublicKey('A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94');
+// OK
+
+validatePublicKey('invalid', 'vaultAddress');
+// Throws: ValidationError on field 'vaultAddress'
+```
+
+---
+
+### validateTokenAmount(amount, fieldName?, decimals?)
+
+Validate a token amount.
+
+```typescript
+import { validateTokenAmount } from '@optionsfi/sdk';
+
+validateTokenAmount(BigInt(1000 * 1e6)); // OK
+validateTokenAmount(-1n);                 // Throws
+validateTokenAmount(BigInt(1e30));        // Throws (too large)
+```
+
+---
+
+### validateTimestamp(timestamp, fieldName?, options?)
+
+Validate a Unix timestamp.
+
+```typescript
+import { validateTimestamp } from '@optionsfi/sdk';
+
+validateTimestamp(futureTimestamp, 'expiry', { 
+  mustBeFuture: true 
+});
+
+validateTimestamp(nearFuture, 'expiry', { 
+  mustBeFuture: true,
+  maxFutureDays: 90 
+});
+```
+
+## Constants
+
+### Token Decimals
+
+```typescript
+import { TOKEN_DECIMALS } from '@optionsfi/sdk';
+
+TOKEN_DECIMALS.USDC;  // 6
+TOKEN_DECIMALS.SOL;   // 9
+TOKEN_DECIMALS.NVDAX; // 6
+```
+
+### Configuration
+
+```typescript
+import { 
+  DEVNET_CONFIG, 
+  MAINNET_CONFIG,
+  RFQ_DEFAULTS 
+} from '@optionsfi/sdk';
+
+// DEVNET_CONFIG
+{
+  rpcUrl: 'https://api.devnet.solana.com',
+  rfqRouterUrl: 'wss://rfq.optionsfi.xyz',
+  programId: 'A4jgqct3...',
+  network: 'devnet',
+  rfqTimeoutMs: 30000,
+}
+
+// RFQ_DEFAULTS
+{
+  timeoutMs: 30000,
+  minQuoteTimeMs: 5000,
+  quoteExpiryBufferMs: 2000,
+}
+```
+
+### Program Addresses
+
+```typescript
+import { 
+  VAULT_PROGRAM_ID,
+  MOCK_USDC_MINT,
+  PYTH_PRICE_FEEDS,
+  PYTH_HERMES_URL 
+} from '@optionsfi/sdk';
+
+console.log(VAULT_PROGRAM_ID.toString());
+// "A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94"
+
+console.log(PYTH_PRICE_FEEDS.NVDA);
+// Pyth price feed ID for NVDA
+```
+
+### PDA Derivation
+
+```typescript
+import { 
+  deriveVaultPda,
+  deriveWithdrawalPda,
+  deriveShareEscrowPda,
+  deriveWhitelistPda 
+} from '@optionsfi/sdk';
+
+const [vaultPda, bump] = deriveVaultPda('NVDAX');
+```

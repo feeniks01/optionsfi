@@ -1,0 +1,175 @@
+---
+title: API Overview
+description: 'OptionsFi SDK API Reference'
+---
+
+## Installation
+
+```bash
+npm install @optionsfi/sdk @coral-xyz/anchor @solana/web3.js
+```
+
+## Core Classes
+
+The SDK exports three main classes:
+
+| Class | Description |
+|-------|-------------|
+| [`RFQClient`](/api-reference/rfq-client) | Create RFQs and handle quotes via WebSocket |
+| [`VaultInstructions`](/api-reference/vault-instructions) | Build transactions for the vault program |
+| [`OptionPricing`](/api-reference/option-pricing) | Black-Scholes pricing and utilities |
+
+## Quick Import
+
+```typescript
+import {
+  // Core clients
+  RFQClient,
+  VaultInstructions,
+  OptionPricing,
+  
+  // Configuration
+  DEVNET_CONFIG,
+  MAINNET_CONFIG,
+  
+  // Constants
+  VAULT_PROGRAM_ID,
+  deriveVaultPda,
+  PYTH_PRICE_FEEDS,
+  
+  // Utilities
+  formatUSDC,
+  parseUSDC,
+  formatTokenAmount,
+  shortenAddress,
+  
+  // Validation
+  validateRFQParams,
+  validateBlackScholesParams,
+  
+  // Types
+  type RFQConfig,
+  type RFQParams,
+  type Quote,
+  type VaultData,
+  type BlackScholesParams,
+} from '@optionsfi/sdk';
+```
+
+## Configuration
+
+### Devnet (Testing)
+
+```typescript
+import { RFQClient, DEVNET_CONFIG } from '@optionsfi/sdk';
+
+const client = new RFQClient(DEVNET_CONFIG);
+```
+
+### Mainnet (Production)
+
+```typescript
+import { RFQClient, MAINNET_CONFIG } from '@optionsfi/sdk';
+
+const client = new RFQClient(MAINNET_CONFIG);
+```
+
+### Custom Configuration
+
+```typescript
+const client = new RFQClient({
+  rpcUrl: 'https://your-rpc.com',
+  rfqRouterUrl: 'wss://rfq.optionsfi.xyz',
+  programId: 'A4jgqct3bwTwRmHECHdPpbH3a8ksaVb7rny9pMUGFo94',
+  network: 'mainnet-beta',
+  rfqTimeoutMs: 30000,
+});
+```
+
+## Type Definitions
+
+<Expandable title="RFQConfig">
+```typescript
+interface RFQConfig {
+  rpcUrl: string;           // Solana RPC endpoint
+  rfqRouterUrl: string;     // WebSocket URL for RFQ router
+  programId: string;        // Vault program ID
+  network?: 'devnet' | 'mainnet-beta';
+  rfqTimeoutMs?: number;    // RFQ timeout (default: 30000)
+}
+```
+</Expandable>
+
+<Expandable title="RFQParams">
+```typescript
+interface RFQParams {
+  asset: string;            // Asset identifier (e.g., "NVDAX")
+  side: 'buy' | 'sell';     // Direction
+  optionType: 'call' | 'put';
+  strike: number;           // Strike price in USD
+  expiry: number;           // Unix timestamp (seconds)
+  quantity: bigint;         // Notional in smallest units
+  vaultAddress: string;     // Vault making the request
+  premiumFloor?: bigint;    // Minimum acceptable premium
+}
+```
+</Expandable>
+
+<Expandable title="Quote">
+```typescript
+interface Quote {
+  id: string;              // Unique quote ID
+  rfqId: string;           // Associated RFQ
+  marketMaker: string;     // Market maker identifier
+  premium: bigint;         // Premium in smallest units
+  timestamp: number;       // Quote timestamp
+  expiresAt: number;       // Quote expiration
+}
+```
+</Expandable>
+
+<Expandable title="VaultData">
+```typescript
+interface VaultData {
+  authority: PublicKey;        // Vault authority
+  assetId: string;             // Asset identifier
+  underlyingMint: PublicKey;   // Underlying token mint
+  shareMint: PublicKey;        // Share token mint
+  totalAssets: bigint;         // Total underlying deposited
+  totalShares: bigint;         // Outstanding shares
+  epoch: bigint;               // Current epoch
+  epochNotionalExposed: bigint; // Exposure this epoch
+  epochPremiumEarned: bigint;  // Premium earned
+  utilizationCapBps: number;   // Max utilization (bps)
+  isPaused: boolean;           // Pause status
+  // ... additional fields
+}
+```
+</Expandable>
+
+## Error Handling
+
+```typescript
+import { ValidationError } from '@optionsfi/sdk';
+
+try {
+  await client.createRFQ(params);
+} catch (error) {
+  if (error instanceof ValidationError) {
+    console.error(`Validation error on field '${error.field}':`, error.message);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="RFQ Client" icon="plug" href="/api-reference/rfq-client">
+    WebSocket client for RFQ operations
+  </Card>
+  <Card title="Vault Instructions" icon="landmark" href="/api-reference/vault-instructions">
+    Build vault program transactions
+  </Card>
+</CardGroup>

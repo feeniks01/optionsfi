@@ -1,0 +1,388 @@
+---
+title: Covered Call Vault
+description: 'Complete example of a covered call vault using OptionsFi'
+---
+
+## Overview
+
+This example shows how to build a covered call vault that:
+1. Accepts deposits in NVDAx (tokenized NVIDIA stock)
+2. Sells weekly covered calls to earn premium
+3. Automatically settles at expiry
+
+## Full Implementation
+
+```typescript
+import {
+  RFQClient,
+  VaultInstructions,
+  OptionPricing,
+  DEVNET_CONFIG,
+  deriveVaultPda,
+  formatUSDC,
+} from '@optionsfi/sdk';
+import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+
+interface VaultConfig {
+  assetId: string;
+  strikePercent: number;  // e.g., 1.05 = 5% OTM
+  epochDays: number;       // e.g., 7 = weekly
+  maxUtilization: number;  // e.g., 0.8 = 80%
+}
+
+class CoveredCallVault {
+  private rfqClient: RFQClient;
+  private vaultIx: VaultInstructions;
+  private connection: Connection;
+  private config: VaultConfig;
+  private authority: Keypair;
+  
+  constructor(
+    connection: Connection,
+    config: VaultConfig,
+    authority: Keypair
+  ) {
+    this.connection = connection;
+    this.config = config;
+    this.authority = authority;
+    this.rfqClient = new RFQClient(DEVNET_CONFIG);
+    this.vaultIx = new VaultInstructions(connection);
+  }
+  
+  async initialize() {
+    await this.rfqClient.connect();
+    await this.vaultIx.initialize();
+    console.log('Vault initialized');
+  }
+  
+  async getVaultState() {
+    const vault = await this.vaultIx.fetchVault(this.config.assetId);
+    if (!vault) throw new Error('Vault not found');
+    return vault;
+  }
+  
+  /**
+   * Run the weekly epoch cycle
+   */
+  async runEpoch(spotPrice: number, volatility: number) {
+    console.log('\n=== Starting Epoch Cycle ===');
+    console.log(`Spot: $${spotPrice.toFixed(2)}`);
+    console.log(`Volatility: ${(volatility * 100).toFixed(1)}%`);
+    
+    // 1. Get vault state
+    const vault = await this.getVaultState();
+    const sharePrice = VaultInstructions.calculateSharePrice(vault);
+    const capacity = VaultInstructions.getRemainingCapacity(vault);
+    
+    console.log(`\nVault State:`);
+    console.log(`  Total Assets: ${formatUSDC(vault.totalAssets)}`);
+    console.log(`  Share Price: ${sharePrice.toFixed(4)}`);
+    console.log(`  Epoch: ${vault.epoch}`);
+    console.log(`  Available Capacity: ${formatUSDC(capacity)}`);
+    
+    if (capacity <= 0n) {
+      console.log('Vault at capacity, skipping');
+      return null;
+    }
+    
+    // 2. Calculate option parameters
+    const strike = spotPrice * this.config.strikePercent;
+    const expiry = this.getNextExpiry();
+    const quantity = this.calculateTradeSize(vault, capacity);
+    
+    console.log(`\nOption Parameters:`);
+    console.log(`  Strike: $${strike.toFixed(2)} (${((this.config.strikePercent - 1) * 100).toFixed(0)}% OTM)`);
+    console.log(`  Expiry: ${new Date(expiry * 1000).toISOString()}`);
+    console.log(`  Quantity: ${formatUSDC(quantity)} tokens`);
+    
+    // 3. Calculate expected premium
+    const fairValue = OptionPricing.blackScholes({
+      spot: spotPrice,
+      strike,
+      timeToExpiry: OptionPricing.timeToExpiry(expiry),
+      riskFreeRate: 0.05,
+      volatility,
+    }).call;
+    
+    const expectedPremium = fairValue * Number(quantity) / 1e6;
+    console.log(`  Expected Premium: $${expectedPremium.toFixed(2)}`);
+    
+    // 4. Create RFQ
+    console.log('\nCreating RFQ...');
+    const rfqId = await this.rfqClient.createRFQ({
+      asset: this.config.assetId,
+      side: 'sell',
+      optionType: 'call',
+      strike,
+      expiry,
+      quantity,
+      vaultAddress: vault.authority.toString(),
+      premiumFloor: BigInt(Math.floor(expectedPremium * 0.9 * 1e6)), // 90% of fair
+    });
+    console.log(`RFQ Created: ${rfqId}`);
+    
+    // 5. Collect and validate quotes
+    console.log('\nCollecting quotes...');
+    const quotes = await this.collectQuotes(rfqId, fairValue);
+    
+    if (quotes.length === 0) {
+      console.log('No valid quotes received, canceling RFQ');
+      await this.rfqClient.cancelRFQ(rfqId);
+      return null;
+    }
+    
+    console.log(`Received ${quotes.length} valid quotes`);
+    
+    // 6. Execute best quote
+    const best = quotes.reduce((a, b) => a.premium > b.premium ? a : b);
+    console.log(`\nBest Quote: ${formatUSDC(best.premium)} USDC from ${best.marketMaker}`);
+    
+    // In production, use actual wallet:
+    // const signature = await this.rfqClient.executeOption(rfqId, best.id, this.wallet);
+    console.log('Execution would happen here with wallet integration');
+    
+    return {
+      rfqId,
+      quote: best,
+      strike,
+      expiry,
+      quantity,
+    };
+  }
+  
+  /**
+   * Handle settlement at expiry
+   */
+  async settleExpiry(
+    spotAtExpiry: number,
+    strike: number,
+    notional: bigint,
+    marketMaker: PublicKey,
+    marketMakerTokenAccount: PublicKey
+  ) {
+    console.log('\n=== Settlement ===');
+    console.log(`Spot at Expiry: $${spotAtExpiry.toFixed(2)}`);
+    console.log(`Strike: $${strike.toFixed(2)}`);
+    
+    const isITM = spotAtExpiry > strike;
+    
+    if (!isITM) {
+      console.log('Option expired OTM - vault keeps all premium!');
+      return null;
+    }
+    
+    // Calculate settlement
+    const settlementPerUnit = spotAtExpiry - strike;
+    const totalSettlement = BigInt(Math.floor(settlementPerUnit * Number(notional) / 1e6));
+    
+    console.log(`Option ITM - Settlement: ${formatUSDC(totalSettlement)} USDC`);
+    
+    const [vaultPda] = deriveVaultPda(this.config.assetId);
+    
+    const ix = await this.vaultIx.paySettlement({
+      vault: vaultPda,
+      authority: this.authority.publicKey,
+      recipient: marketMaker,
+      recipientTokenAccount: marketMakerTokenAccount,
+      amount: totalSettlement,
+    });
+    
+    const tx = new Transaction().add(ix);
+    const sig = await sendAndConfirmTransaction(this.connection, tx, [this.authority]);
+    
+    console.log(`Settlement TX: ${sig}`);
+    return sig;
+  }
+  
+  /**
+   * Advance to next epoch after settlement
+   */
+  async advanceEpoch(premiumEarned: bigint) {
+    console.log('\n=== Advancing Epoch ===');
+    
+    const [vaultPda] = deriveVaultPda(this.config.assetId);
+    
+    const ix = await this.vaultIx.advanceEpoch({
+      vault: vaultPda,
+      authority: this.authority.publicKey,
+      premiumEarned,
+    });
+    
+    const tx = new Transaction().add(ix);
+    const sig = await sendAndConfirmTransaction(this.connection, tx, [this.authority]);
+    
+    // Get updated state
+    const vault = await this.getVaultState();
+    const newSharePrice = VaultInstructions.calculateSharePrice(vault);
+    
+    console.log(`Epoch advanced. New share price: ${newSharePrice.toFixed(4)}`);
+    console.log(`TX: ${sig}`);
+    
+    return sig;
+  }
+  
+  // ============================================================
+  // Private Helpers
+  // ============================================================
+  
+  private getNextExpiry(): number {
+    const now = new Date();
+    const daysToAdd = this.config.epochDays;
+    
+    // For weekly vaults, target next Friday 4pm ET
+    if (daysToAdd === 7) {
+      const friday = new Date();
+      friday.setDate(now.getDate() + ((5 - now.getDay() + 7) % 7 || 7));
+      friday.setUTCHours(21, 0, 0, 0); // 4pm ET = 21:00 UTC
+      return Math.floor(friday.getTime() / 1000);
+    }
+    
+    // Otherwise, just add days
+    const expiry = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    expiry.setUTCHours(21, 0, 0, 0);
+    return Math.floor(expiry.getTime() / 1000);
+  }
+  
+  private calculateTradeSize(vault: any, capacity: bigint): bigint {
+    // Use up to maxUtilization of capacity
+    const maxTrade = BigInt(Math.floor(Number(capacity) * this.config.maxUtilization));
+    return maxTrade;
+  }
+  
+  private async collectQuotes(rfqId: string, fairValue: number): Promise<any[]> {
+    const validQuotes: any[] = [];
+    
+    this.rfqClient.subscribeToQuotes(rfqId, (quote) => {
+      const premiumUSD = Number(quote.premium) / 1e6;
+      const validation = OptionPricing.validateQuote(premiumUSD, fairValue, 500);
+      
+      if (validation.isValid) {
+        console.log(`  ✓ Valid: ${formatUSDC(quote.premium)} from ${quote.marketMaker}`);
+        validQuotes.push(quote);
+      } else {
+        console.log(`  ✗ Rejected: ${validation.reason}`);
+      }
+    });
+    
+    // Wait for quotes
+    await new Promise(r => setTimeout(r, 10000));
+    
+    this.rfqClient.unsubscribeFromQuotes(rfqId);
+    
+    return validQuotes;
+  }
+  
+  async cleanup() {
+    this.rfqClient.disconnect();
+  }
+}
+
+// ============================================================
+// Example Usage
+// ============================================================
+
+async function main() {
+  const connection = new Connection('https://api.devnet.solana.com');
+  const authority = Keypair.generate(); // Use your actual keypair
+  
+  const vault = new CoveredCallVault(connection, {
+    assetId: 'NVDAX',
+    strikePercent: 1.05,  // 5% OTM
+    epochDays: 7,          // Weekly
+    maxUtilization: 0.8,   // Use 80% of available
+  }, authority);
+  
+  await vault.initialize();
+  
+  // Run weekly cycle
+  const result = await vault.runEpoch(
+    145.50,  // Current NVDA price
+    0.45     // 45% implied vol
+  );
+  
+  if (result) {
+    console.log('\nTrade Summary:');
+    console.log(`  Strike: $${result.strike}`);
+    console.log(`  Expiry: ${new Date(result.expiry * 1000).toDateString()}`);
+    console.log(`  Premium: ${formatUSDC(result.quote.premium)}`);
+  }
+  
+  await vault.cleanup();
+}
+
+main().catch(console.error);
+```
+
+## Key Concepts
+
+### Strike Selection
+
+The vault sells calls 5% out-of-the-money:
+
+```typescript
+strikePercent: 1.05
+```
+
+This provides:
+- **Upside room**: Stock can rise 5% before options go ITM
+- **Better premiums**: Closer strikes = higher premiums
+- **Risk balance**: Not too close (caps gains), not too far (low premium)
+
+### Epoch Timing
+
+Weekly epochs align with traditional options expiration:
+
+```typescript
+epochDays: 7
+
+// Target Friday 4pm ET expiry
+friday.setUTCHours(21, 0, 0, 0);
+```
+
+### Utilization Caps
+
+The vault limits how much capital is used:
+
+```typescript
+maxUtilization: 0.8  // 80%
+```
+
+This ensures:
+- **Buffer for settlements**: Always have funds for ITM payouts
+- **Liquidity**: Depositors can withdraw unused capital
+- **Risk management**: Limits max exposure
+
+## Performance Metrics
+
+```typescript
+// Calculate annualized yield
+function calculateAPY(premiumBps: number, epochDays: number): number {
+  const epochsPerYear = 365 / epochDays;
+  const epochYield = premiumBps / 10000;
+  return (Math.pow(1 + epochYield, epochsPerYear) - 1) * 100;
+}
+
+// Example: 1.5% premium over 7 days
+calculateAPY(150, 7);  // ~116% APY
+```
+
+## Risk Considerations
+
+<Warning>
+**Important Risks:**
+
+1. **ITM Settlement**: If price exceeds strike, vault pays the difference
+2. **Opportunity Cost**: Gains above strike are forfeited
+3. **Smart Contract Risk**: On-chain execution depends on program security
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Explore the full SDK API
+  </Card>
+  <Card title="Pricing Options" icon="calculator" href="/examples/pricing-options">
+    Learn option pricing in detail
+  </Card>
+</CardGroup>

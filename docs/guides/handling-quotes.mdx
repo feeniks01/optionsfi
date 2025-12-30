@@ -1,0 +1,275 @@
+---
+title: Handling Quotes
+description: 'Receive, validate, and process market maker quotes'
+---
+
+## Overview
+
+After creating an RFQ, market makers will submit quotes with their premium offers. This guide covers how to receive, validate, and select the best quotes.
+
+## Subscribing to Quotes
+
+```typescript
+import { RFQClient, DEVNET_CONFIG } from '@optionsfi/sdk';
+import type { Quote } from '@optionsfi/sdk';
+
+const client = new RFQClient(DEVNET_CONFIG);
+await client.connect();
+
+const rfqId = await client.createRFQ({...});
+
+// Subscribe to quotes
+client.subscribeToQuotes(rfqId, (quote: Quote) => {
+  console.log('New quote received:');
+  console.log(`  ID: ${quote.id}`);
+  console.log(`  Market Maker: ${quote.marketMaker}`);
+  console.log(`  Premium: ${Number(quote.premium) / 1e6} USDC`);
+  console.log(`  Expires: ${new Date(quote.expiresAt).toISOString()}`);
+});
+```
+
+## Quote Structure
+
+```typescript
+interface Quote {
+  id: string;          // Unique quote identifier
+  rfqId: string;       // Associated RFQ
+  marketMaker: string; // Market maker identifier
+  premium: bigint;     // Premium amount in smallest units
+  timestamp: number;   // When quote was submitted
+  expiresAt: number;   // Quote expiration timestamp
+}
+```
+
+## Validating Quotes
+
+### Against Fair Value
+
+```typescript
+import { OptionPricing } from '@optionsfi/sdk';
+
+function validateQuote(quote: Quote, spotPrice: number, rfqParams: RFQParams) {
+  // Calculate fair value
+  const fairValue = OptionPricing.blackScholes({
+    spot: spotPrice,
+    strike: rfqParams.strike,
+    timeToExpiry: OptionPricing.timeToExpiry(rfqParams.expiry),
+    riskFreeRate: 0.05,
+    volatility: 0.45,
+  }).call;
+  
+  // Validate quote is within bounds
+  const validation = OptionPricing.validateQuote(
+    Number(quote.premium) / 1e6,
+    fairValue,
+    500 // 5% max deviation
+  );
+  
+  return {
+    ...validation,
+    quotePremium: Number(quote.premium) / 1e6,
+    fairValue,
+  };
+}
+```
+
+### Quote Expiration
+
+```typescript
+function isQuoteValid(quote: Quote): boolean {
+  const now = Date.now();
+  const bufferMs = 2000; // 2 second buffer
+  
+  return quote.expiresAt > now + bufferMs;
+}
+```
+
+### Minimum Premium
+
+```typescript
+function meetsMinimum(quote: Quote, minPremium: bigint): boolean {
+  return quote.premium >= minPremium;
+}
+```
+
+## Quote Collection Strategy
+
+### Collect All, Then Choose
+
+```typescript
+async function collectAndSelectBest(
+  client: RFQClient,
+  rfqId: string,
+  spotPrice: number,
+  rfqParams: RFQParams,
+  timeoutMs: number = 10000
+): Promise<Quote | null> {
+  const validQuotes: Quote[] = [];
+  
+  // Subscribe to quotes
+  client.subscribeToQuotes(rfqId, (quote) => {
+    // Validate each quote
+    const validation = validateQuote(quote, spotPrice, rfqParams);
+    
+    if (validation.isValid && isQuoteValid(quote)) {
+      validQuotes.push(quote);
+      console.log(`Valid quote: ${Number(quote.premium) / 1e6} USDC`);
+    } else {
+      console.log(`Rejected quote: ${validation.reason}`);
+    }
+  });
+  
+  // Wait for collection period
+  await new Promise(resolve => setTimeout(resolve, timeoutMs));
+  
+  // Unsubscribe
+  client.unsubscribeFromQuotes(rfqId);
+  
+  if (validQuotes.length === 0) {
+    return null;
+  }
+  
+  // Return best quote (highest premium for sell side)
+  return validQuotes.reduce((best, q) => 
+    q.premium > best.premium ? q : best
+  );
+}
+```
+
+### First Acceptable Quote
+
+For time-sensitive execution:
+
+```typescript
+async function executeFirstAcceptable(
+  client: RFQClient,
+  rfqId: string,
+  spotPrice: number,
+  rfqParams: RFQParams,
+  wallet: any,
+  minPremiumBps: number = 100
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const minPremium = (spotPrice * minPremiumBps / 10000) * Number(rfqParams.quantity) / 1e6;
+    
+    client.subscribeToQuotes(rfqId, async (quote) => {
+      // Quick validation
+      const quotePremium = Number(quote.premium) / 1e6;
+      
+      if (quotePremium >= minPremium && isQuoteValid(quote)) {
+        // Execute immediately
+        try {
+          const sig = await client.executeOption(rfqId, quote.id, wallet);
+          resolve(sig);
+        } catch (error) {
+          console.error('Execution failed:', error);
+        }
+      }
+    });
+    
+    // Timeout after 30 seconds
+    setTimeout(() => resolve(null), 30000);
+  });
+}
+```
+
+## Comparing Quotes
+
+### By Premium
+
+```typescript
+function sortByPremium(quotes: Quote[], side: 'buy' | 'sell'): Quote[] {
+  return [...quotes].sort((a, b) => {
+    // For sell side: higher premium is better
+    // For buy side: lower premium is better
+    const diff = Number(a.premium - b.premium);
+    return side === 'sell' ? -diff : diff;
+  });
+}
+```
+
+### By Value Score
+
+```typescript
+function scoreQuote(quote: Quote, fairValue: number): number {
+  const premium = Number(quote.premium) / 1e6;
+  const deviation = (premium - fairValue) / fairValue;
+  
+  // Score based on premium and market maker reputation
+  // (you can add market maker scoring based on historical data)
+  return premium * (1 - Math.abs(deviation) * 0.1);
+}
+```
+
+## Displaying Quotes in UI
+
+```typescript
+import { formatUSDC, formatTimeToExpiry, shortenAddress } from '@optionsfi/sdk';
+
+function displayQuote(quote: Quote, fairValue: number) {
+  const premium = Number(quote.premium) / 1e6;
+  const deviation = ((premium - fairValue) / fairValue) * 100;
+  
+  return {
+    id: quote.id,
+    marketMaker: shortenAddress(quote.marketMaker),
+    premium: formatUSDC(quote.premium),
+    premiumUSD: `$${premium.toFixed(2)}`,
+    deviation: `${deviation >= 0 ? '+' : ''}${deviation.toFixed(2)}%`,
+    expiresIn: formatTimeToExpiry(Math.floor(quote.expiresAt / 1000)),
+    isBest: false, // Set in UI
+  };
+}
+```
+
+## Event-Driven Architecture
+
+```typescript
+class QuoteManager {
+  private quotes: Map<string, Quote[]> = new Map();
+  private callbacks: Set<(rfqId: string, quotes: Quote[]) => void> = new Set();
+  
+  constructor(private client: RFQClient) {}
+  
+  track(rfqId: string) {
+    this.quotes.set(rfqId, []);
+    
+    this.client.subscribeToQuotes(rfqId, (quote) => {
+      const existing = this.quotes.get(rfqId) || [];
+      existing.push(quote);
+      this.quotes.set(rfqId, existing);
+      
+      // Notify subscribers
+      this.callbacks.forEach(cb => cb(rfqId, existing));
+    });
+  }
+  
+  onUpdate(callback: (rfqId: string, quotes: Quote[]) => void) {
+    this.callbacks.add(callback);
+    return () => this.callbacks.delete(callback);
+  }
+  
+  getBest(rfqId: string): Quote | null {
+    const quotes = this.quotes.get(rfqId) || [];
+    if (quotes.length === 0) return null;
+    return quotes.reduce((a, b) => a.premium > b.premium ? a : b);
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Validate Everything" icon="check">
+    Never accept quotes without fair value validation
+  </Card>
+  <Card title="Check Expiration" icon="clock">
+    Always verify quotes haven't expired before execution
+  </Card>
+  <Card title="Log All Quotes" icon="list">
+    Keep records of all quotes for analysis and audit
+  </Card>
+  <Card title="Handle Timeouts" icon="hourglass">
+    Implement fallback logic if no quotes are received
+  </Card>
+</CardGroup>

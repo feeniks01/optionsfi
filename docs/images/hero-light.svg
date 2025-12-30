@@ -1,0 +1,34 @@
+<svg width="800" height="400" viewBox="0 0 800 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="400" fill="#F9FAFB"/>
+  
+  <!-- Grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E5E7EB" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="400" fill="url(#grid)"/>
+  
+  <!-- Gradient overlay -->
+  <rect width="800" height="400" fill="url(#gradient)" opacity="0.3"/>
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Main icon -->
+  <circle cx="400" cy="180" r="60" stroke="#10B981" stroke-width="6"/>
+  <path d="M370 180 L388 198 L430 156" stroke="#10B981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Title -->
+  <text x="400" y="290" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="#1F2937" text-anchor="middle">
+    OptionsFi SDK
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="400" y="330" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#6B7280" text-anchor="middle">
+    On-Chain Options Settlement Infrastructure
+  </text>
+</svg>

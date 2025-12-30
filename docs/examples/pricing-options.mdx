@@ -1,0 +1,416 @@
+---
+title: Pricing Options
+description: 'Examples of option pricing calculations and strategies'
+---
+
+## Overview
+
+This example demonstrates how to use the `OptionPricing` class for various pricing scenarios.
+
+## Basic Pricing
+
+### Call and Put Prices
+
+```typescript
+import { OptionPricing } from '@optionsfi/sdk';
+
+// Price an at-the-money option
+const atm = OptionPricing.blackScholes({
+  spot: 145.50,
+  strike: 145.50,
+  timeToExpiry: 30 / 365,  // 1 month
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+
+console.log('ATM Option (1 month):');
+console.log(`  Call: $${atm.call.toFixed(2)}`);   // ~$9.50
+console.log(`  Put: $${atm.put.toFixed(2)}`);     // ~$8.90
+console.log(`  Call Delta: ${atm.delta.call.toFixed(3)}`);  // ~0.530
+console.log(`  Put Delta: ${atm.delta.put.toFixed(3)}`);    // ~-0.470
+```
+
+### OTM vs ITM
+
+```typescript
+// 5% Out-of-the-money call
+const otmCall = OptionPricing.blackScholes({
+  spot: 145.50,
+  strike: 152.78,  // 5% higher
+  timeToExpiry: 7 / 365,  // 1 week
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+
+// 5% In-the-money call
+const itmCall = OptionPricing.blackScholes({
+  spot: 145.50,
+  strike: 138.23,  // 5% lower
+  timeToExpiry: 7 / 365,
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+
+console.log('1-Week Options:');
+console.log(`  5% OTM Call: $${otmCall.call.toFixed(2)}, Delta: ${otmCall.delta.call.toFixed(2)}`);
+console.log(`  5% ITM Call: $${itmCall.call.toFixed(2)}, Delta: ${itmCall.delta.call.toFixed(2)}`);
+```
+
+## Premium Analysis
+
+### Covered Call Premium Calculation
+
+```typescript
+function analyzeCoveredCallPremium(
+  spot: number,
+  strikePercent: number,
+  daysToExpiry: number,
+  volatility: number
+) {
+  const strike = spot * strikePercent;
+  
+  const premium = OptionPricing.calculateCoveredCallPremium({
+    spot,
+    strikePercent,
+    daysToExpiry,
+    volatility,
+  });
+  
+  const premiumBps = OptionPricing.premiumToBps(premium, spot);
+  const annualizedBps = (premiumBps / daysToExpiry) * 365;
+  
+  return {
+    strike,
+    premium,
+    premiumBps,
+    annualizedBps,
+    annualizedPercent: annualizedBps / 100,
+  };
+}
+
+// Analyze different strikes
+const strikes = [1.02, 1.05, 1.10];  // 2%, 5%, 10% OTM
+
+console.log('Premium Analysis (7-day, 45% vol):');
+console.log('-----------------------------------');
+
+for (const strikePercent of strikes) {
+  const analysis = analyzeCoveredCallPremium(145.50, strikePercent, 7, 0.45);
+  console.log(`${((strikePercent - 1) * 100).toFixed(0)}% OTM ($${analysis.strike.toFixed(2)}):`);
+  console.log(`  Premium: $${analysis.premium.toFixed(2)} (${analysis.premiumBps} bps)`);
+  console.log(`  Annualized: ${analysis.annualizedPercent.toFixed(1)}%`);
+}
+```
+
+**Output:**
+```
+Premium Analysis (7-day, 45% vol):
+-----------------------------------
+2% OTM ($148.41):
+  Premium: $3.85 (265 bps)
+  Annualized: 138.2%
+5% OTM ($152.78):
+  Premium: $2.15 (148 bps)
+  Annualized: 77.1%
+10% OTM ($160.05):
+  Premium: $0.78 (54 bps)
+  Annualized: 28.1%
+```
+
+## Greeks Analysis
+
+### Delta Exposure
+
+```typescript
+function calculatePortfolioDelta(
+  positions: Array<{
+    type: 'call' | 'put';
+    quantity: number;
+    strike: number;
+    expiry: number;
+  }>,
+  spot: number,
+  volatility: number
+) {
+  let totalDelta = 0;
+  
+  for (const pos of positions) {
+    const tte = OptionPricing.timeToExpiry(pos.expiry);
+    const prices = OptionPricing.blackScholes({
+      spot,
+      strike: pos.strike,
+      timeToExpiry: tte,
+      riskFreeRate: 0.05,
+      volatility,
+    });
+    
+    const delta = pos.type === 'call' ? prices.delta.call : prices.delta.put;
+    totalDelta += delta * pos.quantity;
+  }
+  
+  return {
+    totalDelta,
+    dollarDelta: totalDelta * spot,
+  };
+}
+
+// Example: Short 1000 calls at 5% OTM
+const exposure = calculatePortfolioDelta([
+  {
+    type: 'call',
+    quantity: -1000,  // Short
+    strike: 152.78,
+    expiry: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+  }
+], 145.50, 0.45);
+
+console.log('Portfolio Delta:', exposure.totalDelta.toFixed(0));
+console.log('Dollar Delta:', `$${exposure.dollarDelta.toFixed(0)}`);
+```
+
+## Volatility Analysis
+
+### Historical Volatility
+
+```typescript
+// Calculate historical vol from price history
+const priceHistory = [
+  140.0, 142.5, 141.0, 144.0, 143.5,
+  146.0, 145.0, 147.5, 146.5, 148.0,
+  147.0, 149.5, 148.5, 150.0, 149.0,
+  151.5, 150.5, 152.0, 151.0, 153.0,
+];
+
+const historicalVol = OptionPricing.calculateHistoricalVolatility(priceHistory);
+console.log(`20-day Historical Vol: ${(historicalVol * 100).toFixed(1)}%`);
+```
+
+### Implied Volatility
+
+```typescript
+// Derive IV from market price
+const marketPrice = 3.50;  // Market is pricing the call at $3.50
+const spot = 145.50;
+const strike = 150;
+const expiry = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
+const iv = OptionPricing.calculateImpliedVolatility(
+  marketPrice,
+  spot,
+  strike,
+  OptionPricing.timeToExpiry(expiry),
+  0.05,
+  'call'
+);
+
+console.log(`Implied Volatility: ${(iv * 100).toFixed(1)}%`);
+```
+
+### Vol Surface Analysis
+
+```typescript
+function buildVolSurface(
+  spot: number,
+  marketPrices: Array<{
+    strike: number;
+    expiry: number;
+    type: 'call' | 'put';
+    price: number;
+  }>
+) {
+  return marketPrices.map(option => {
+    const tte = OptionPricing.timeToExpiry(option.expiry);
+    
+    let iv: number;
+    try {
+      iv = OptionPricing.calculateImpliedVolatility(
+        option.price,
+        spot,
+        option.strike,
+        tte,
+        0.05,
+        option.type
+      );
+    } catch {
+      iv = NaN;
+    }
+    
+    return {
+      strike: option.strike,
+      expiry: option.expiry,
+      moneyness: option.strike / spot,
+      timeToExpiry: tte,
+      impliedVol: iv,
+    };
+  });
+}
+```
+
+## Quote Validation
+
+### Fair Value Comparison
+
+```typescript
+function analyzeQuote(
+  quotePremium: number,
+  spot: number,
+  strike: number,
+  expiry: number,
+  impliedVol: number
+) {
+  const fairValue = OptionPricing.blackScholes({
+    spot,
+    strike,
+    timeToExpiry: OptionPricing.timeToExpiry(expiry),
+    riskFreeRate: 0.05,
+    volatility: impliedVol,
+  }).call;
+  
+  const validation = OptionPricing.validateQuote(quotePremium, fairValue, 500);
+  
+  return {
+    quotePremium,
+    fairValue,
+    deviation: ((quotePremium - fairValue) / fairValue) * 100,
+    deviationBps: validation.deviationBps,
+    isValid: validation.isValid,
+    reason: validation.reason,
+  };
+}
+
+// Analyze a market maker quote
+const analysis = analyzeQuote(
+  2.35,      // Quote premium
+  145.50,    // Spot
+  152.78,    // Strike (5% OTM)
+  Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,  // 1 week
+  0.45       // Implied vol
+);
+
+console.log('Quote Analysis:');
+console.log(`  Quote: $${analysis.quotePremium.toFixed(2)}`);
+console.log(`  Fair Value: $${analysis.fairValue.toFixed(2)}`);
+console.log(`  Deviation: ${analysis.deviation.toFixed(2)}%`);
+console.log(`  Valid: ${analysis.isValid ? 'Yes' : 'No'}`);
+```
+
+## Strategy Analysis
+
+### Covered Call P&L
+
+```typescript
+function coveredCallPL(
+  spot: number,
+  strike: number,
+  premium: number,
+  priceAtExpiry: number
+) {
+  // Stock P&L
+  const stockPL = priceAtExpiry - spot;
+  
+  // Option P&L (short call)
+  const optionPL = premium - Math.max(0, priceAtExpiry - strike);
+  
+  // Total P&L
+  const totalPL = stockPL + optionPL;
+  const totalReturn = (totalPL / spot) * 100;
+  
+  return {
+    stockPL,
+    optionPL,
+    totalPL,
+    totalReturn,
+    maxProfit: (strike - spot) + premium,
+    maxLoss: spot - premium,  // If stock goes to 0
+    breakeven: spot - premium,
+  };
+}
+
+// Analyze P&L at different expiry prices
+const spot = 145.50;
+const strike = 152.78;
+const premium = 2.15;
+
+console.log('\nCovered Call P&L Analysis:');
+console.log('---------------------------');
+
+for (const expiryPrice of [130, 140, 145.50, 150, 155, 160]) {
+  const pl = coveredCallPL(spot, strike, premium, expiryPrice);
+  console.log(`Price @ Expiry: $${expiryPrice.toFixed(2)}`);
+  console.log(`  Total P&L: $${pl.totalPL.toFixed(2)} (${pl.totalReturn.toFixed(2)}%)`);
+}
+
+console.log(`\nMax Profit: $${coveredCallPL(spot, strike, premium, strike).maxProfit.toFixed(2)}`);
+console.log(`Breakeven: $${(spot - premium).toFixed(2)}`);
+```
+
+## Complete Pricing Tool
+
+```typescript
+import { OptionPricing, formatPercent, formatPrice } from '@optionsfi/sdk';
+
+class OptionAnalyzer {
+  constructor(
+    private spot: number,
+    private volatility: number,
+    private riskFreeRate: number = 0.05
+  ) {}
+  
+  price(strike: number, expiry: number, type: 'call' | 'put') {
+    const tte = OptionPricing.timeToExpiry(expiry);
+    const result = OptionPricing.blackScholes({
+      spot: this.spot,
+      strike,
+      timeToExpiry: tte,
+      riskFreeRate: this.riskFreeRate,
+      volatility: this.volatility,
+    });
+    
+    return {
+      price: type === 'call' ? result.call : result.put,
+      delta: type === 'call' ? result.delta.call : result.delta.put,
+      premium: type === 'call' ? result.call : result.put,
+    };
+  }
+  
+  suggestStrike(otmPercent: number, type: 'call' | 'put') {
+    return OptionPricing.suggestStrike(this.spot, otmPercent * 100, type);
+  }
+  
+  premiumAnalysis(strike: number, daysToExpiry: number) {
+    const premium = OptionPricing.calculateCoveredCallPremium({
+      spot: this.spot,
+      strikePercent: strike / this.spot,
+      daysToExpiry,
+      volatility: this.volatility,
+    });
+    
+    const bps = OptionPricing.premiumToBps(premium, this.spot);
+    const annualized = (bps / daysToExpiry) * 365 / 100;
+    
+    return {
+      premium: formatPrice(premium),
+      bps,
+      annualized: formatPercent(annualized / 100),
+    };
+  }
+}
+
+// Usage
+const analyzer = new OptionAnalyzer(145.50, 0.45);
+
+// Get 5% OTM strike
+const strike = analyzer.suggestStrike(5, 'call');
+console.log(`5% OTM Strike: $${strike.toFixed(2)}`);
+
+// Price the option
+const expiry = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+const option = analyzer.price(strike, expiry, 'call');
+console.log(`Price: $${option.price.toFixed(2)}`);
+console.log(`Delta: ${option.delta.toFixed(3)}`);
+
+// Premium analysis
+const premium = analyzer.premiumAnalysis(strike, 7);
+console.log(`Premium: ${premium.premium} (${premium.bps} bps)`);
+console.log(`Annualized: ${premium.annualized}`);
+```

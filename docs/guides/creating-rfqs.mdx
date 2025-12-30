@@ -1,0 +1,273 @@
+---
+title: Creating RFQs
+description: 'How to create and configure RFQ requests'
+---
+
+## Overview
+
+An RFQ (Request for Quote) is a request sent to market makers for competitive option pricing. This guide covers how to create, configure, and manage RFQs.
+
+## Basic RFQ Creation
+
+```typescript
+import { RFQClient, DEVNET_CONFIG } from '@optionsfi/sdk';
+
+const client = new RFQClient(DEVNET_CONFIG);
+await client.connect();
+
+const rfqId = await client.createRFQ({
+  asset: 'NVDAX',
+  side: 'sell',
+  optionType: 'call',
+  strike: 150,
+  expiry: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+  quantity: BigInt(1000 * 1e6),
+  vaultAddress: 'YOUR_VAULT_ADDRESS',
+});
+```
+
+## RFQ Parameters
+
+### Asset
+
+The underlying asset for the option:
+
+```typescript
+asset: 'NVDAX'  // NVDAx tokenized stock
+asset: 'SOL'    // Solana
+asset: 'BTC'    // Bitcoin
+```
+
+### Side
+
+Direction from your vault's perspective:
+
+| Side | Description | Use Case |
+|------|-------------|----------|
+| `sell` | Vault is selling options | Covered calls, cash-secured puts |
+| `buy` | Vault is buying options | Protective puts, hedging |
+
+```typescript
+side: 'sell'  // Covered call - receive premium
+side: 'buy'   // Protective put - pay premium
+```
+
+### Option Type
+
+```typescript
+optionType: 'call'  // Right to buy underlying
+optionType: 'put'   // Right to sell underlying
+```
+
+### Strike Price
+
+The exercise price in USD:
+
+```typescript
+// Absolute strike
+strike: 150  // $150 strike
+
+// Calculate based on current price
+const spotPrice = 145.50;
+const strike = spotPrice * 1.05;  // 5% OTM
+```
+
+<Tip>
+  Use `OptionPricing.suggestStrike()` to calculate strikes based on OTM percentage.
+</Tip>
+
+### Expiry
+
+Unix timestamp in seconds:
+
+```typescript
+// 1 week from now
+expiry: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60
+
+// Specific date
+expiry: Math.floor(new Date('2024-01-19').getTime() / 1000)
+
+// Friday 4pm ET (typical options expiry)
+const friday = getNextFriday();
+friday.setUTCHours(21, 0, 0, 0); // 4pm ET = 21:00 UTC
+expiry: Math.floor(friday.getTime() / 1000)
+```
+
+### Quantity
+
+Notional amount in smallest units:
+
+```typescript
+// 1,000 tokens (6 decimals)
+quantity: BigInt(1000 * 1e6)
+
+// From user input
+import { parseTokenAmount } from '@optionsfi/sdk';
+quantity: parseTokenAmount('1000', 6)
+```
+
+### Premium Floor (Optional)
+
+Minimum acceptable premium:
+
+```typescript
+// Only accept quotes >= 50 USDC
+premiumFloor: BigInt(50 * 1e6)
+
+// Based on fair value calculation
+import { OptionPricing } from '@optionsfi/sdk';
+
+const fairValue = OptionPricing.blackScholes({...}).call;
+const minPremium = fairValue * 0.9; // 90% of fair
+premiumFloor: BigInt(Math.floor(minPremium * 1e6))
+```
+
+## Calculating Optimal Strikes
+
+### Using OTM Percentage
+
+```typescript
+import { OptionPricing } from '@optionsfi/sdk';
+
+function calculateStrike(spotPrice: number, otmPercent: number, type: 'call' | 'put') {
+  // Convert percent to basis points
+  const deltaBps = otmPercent * 100; // 5% = 500 bps
+  return OptionPricing.suggestStrike(spotPrice, deltaBps, type);
+}
+
+// 5% OTM covered call
+const strike = calculateStrike(145.50, 5, 'call'); // 152.78
+```
+
+### Based on Delta
+
+For more precise Greeks-based positioning:
+
+```typescript
+function findStrikeByDelta(spot: number, targetDelta: number, expiry: number, vol: number) {
+  // Iterate to find strike that gives target delta
+  let strike = spot;
+  const tte = OptionPricing.timeToExpiry(expiry);
+  
+  for (let i = 0; i < 20; i++) {
+    const result = OptionPricing.blackScholes({
+      spot, strike,
+      timeToExpiry: tte,
+      riskFreeRate: 0.05,
+      volatility: vol,
+    });
+    
+    if (Math.abs(result.delta.call - targetDelta) < 0.01) break;
+    
+    // Adjust strike based on delta difference
+    if (result.delta.call > targetDelta) {
+      strike *= 1.01;
+    } else {
+      strike *= 0.99;
+    }
+  }
+  
+  return strike;
+}
+
+// Find strike with ~0.30 delta (30% ITM probability)
+const strike = findStrikeByDelta(145, 0.30, expiry, 0.45);
+```
+
+## RFQ Lifecycle
+
+<Steps>
+  <Step title="Create RFQ">
+    Call `createRFQ()` with your parameters
+  </Step>
+  <Step title="RFQ Broadcast">
+    Router broadcasts to connected market makers
+  </Step>
+  <Step title="Collect Quotes">
+    Subscribe to quotes with `subscribeToQuotes()`
+  </Step>
+  <Step title="Validate Quotes">
+    Check quotes against fair value
+  </Step>
+  <Step title="Execute or Expire">
+    Accept best quote or let RFQ expire
+  </Step>
+</Steps>
+
+## Batch RFQ Creation
+
+For strategies requiring multiple options:
+
+```typescript
+async function createStraddleRFQs(spot: number, expiry: number, quantity: bigint) {
+  const client = new RFQClient(DEVNET_CONFIG);
+  await client.connect();
+  
+  const strike = Math.round(spot); // ATM
+  
+  // Create call RFQ
+  const callRfqId = await client.createRFQ({
+    asset: 'NVDAX',
+    side: 'sell',
+    optionType: 'call',
+    strike,
+    expiry,
+    quantity,
+    vaultAddress: VAULT_ADDRESS,
+  });
+  
+  // Create put RFQ
+  const putRfqId = await client.createRFQ({
+    asset: 'NVDAX',
+    side: 'sell',
+    optionType: 'put',
+    strike,
+    expiry,
+    quantity,
+    vaultAddress: VAULT_ADDRESS,
+  });
+  
+  return { callRfqId, putRfqId };
+}
+```
+
+## Error Handling
+
+```typescript
+import { ValidationError } from '@optionsfi/sdk';
+
+async function safeCreateRFQ(params) {
+  try {
+    return await client.createRFQ(params);
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error(`Invalid ${error.field}: ${error.message}`);
+      return null;
+    }
+    
+    if (error.message.includes('Not connected')) {
+      await client.connect();
+      return await client.createRFQ(params);
+    }
+    
+    throw error;
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Validate Parameters" icon="check">
+    Use `validateRFQParams()` before creating RFQs to catch errors early
+  </Card>
+  <Card title="Set Premium Floors" icon="shield">
+    Protect against adverse quotes by setting minimum acceptable premiums
+  </Card>
+  <Card title="Calculate Fair Value" icon="calculator">
+    Always know the Black-Scholes fair value before accepting quotes
+  </Card>
+  <Card title="Handle Timeouts" icon="clock">
+    Implement timeout logic if no acceptable quotes are received
+  </Card>
+</CardGroup>

@@ -1,0 +1,190 @@
+---
+title: Quickstart
+description: 'Integrate OptionsFi in under 5 minutes'
+---
+
+## Installation
+
+Install the SDK and peer dependencies:
+
+<CodeGroup>
+
+```bash npm
+npm install @optionsfi/sdk @coral-xyz/anchor @solana/web3.js
+```
+
+```bash yarn
+yarn add @optionsfi/sdk @coral-xyz/anchor @solana/web3.js
+```
+
+```bash pnpm
+pnpm add @optionsfi/sdk @coral-xyz/anchor @solana/web3.js
+```
+
+</CodeGroup>
+
+## Basic Setup
+
+### 1. Import and Configure
+
+```typescript
+import { 
+  RFQClient, 
+  OptionPricing, 
+  VaultInstructions,
+  DEVNET_CONFIG 
+} from '@optionsfi/sdk';
+import { Connection } from '@solana/web3.js';
+
+// Initialize RFQ client
+const rfqClient = new RFQClient(DEVNET_CONFIG);
+
+// Initialize vault instructions (IDL bundled)
+const connection = new Connection('https://api.devnet.solana.com');
+const vaultIx = new VaultInstructions(connection);
+await vaultIx.initialize();
+```
+
+### 2. Create an RFQ
+
+```typescript
+// Connect to the RFQ router
+await rfqClient.connect();
+
+// Create a covered call RFQ
+const rfqId = await rfqClient.createRFQ({
+  asset: 'NVDAX',           // Asset to sell calls on
+  side: 'sell',             // Vault is selling options
+  optionType: 'call',       // Covered call
+  strike: 150,              // $150 strike price
+  expiry: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 1 week
+  quantity: BigInt(1000 * 1e6),  // 1000 tokens
+  vaultAddress: 'YOUR_VAULT_ADDRESS',
+});
+
+console.log('RFQ created:', rfqId);
+```
+
+### 3. Receive and Validate Quotes
+
+```typescript
+// Subscribe to quotes
+rfqClient.subscribeToQuotes(rfqId, (quote) => {
+  console.log(`Quote from ${quote.marketMaker}:`);
+  console.log(`  Premium: ${Number(quote.premium) / 1e6} USDC`);
+  
+  // Calculate fair value using Black-Scholes
+  const fairValue = OptionPricing.blackScholes({
+    spot: 145.50,
+    strike: 150,
+    timeToExpiry: 7 / 365,
+    riskFreeRate: 0.05,
+    volatility: 0.45,
+  }).call;
+  
+  // Validate quote is within 5% of fair value
+  const validation = OptionPricing.validateQuote(
+    Number(quote.premium) / 1e6,
+    fairValue,
+    500 // 5% max deviation
+  );
+  
+  if (validation.isValid) {
+    console.log('✅ Quote is fair, ready to execute');
+  } else {
+    console.log('❌ Quote rejected:', validation.reason);
+  }
+});
+```
+
+### 4. Execute the Best Quote
+
+```typescript
+// Get all quotes for the RFQ
+const rfq = rfqClient.getRFQ(rfqId);
+const bestQuote = rfq.quotes.reduce((best, q) => 
+  q.premium > best.premium ? q : best
+);
+
+// Execute with your wallet
+const signature = await rfqClient.executeOption(
+  rfqId,
+  bestQuote.id,
+  wallet // Your Solana wallet adapter
+);
+
+console.log('Option executed:', signature);
+```
+
+## Complete Example
+
+Here's a complete integration example:
+
+```typescript
+import { 
+  RFQClient, 
+  OptionPricing,
+  DEVNET_CONFIG,
+  formatUSDC 
+} from '@optionsfi/sdk';
+
+async function main() {
+  // Initialize
+  const client = new RFQClient(DEVNET_CONFIG);
+  await client.connect();
+  
+  // Create RFQ
+  const rfqId = await client.createRFQ({
+    asset: 'NVDAX',
+    side: 'sell',
+    optionType: 'call',
+    strike: 150,
+    expiry: Math.floor(Date.now() / 1000) + 604800, // 1 week
+    quantity: BigInt(1000_000000), // 1000 tokens
+    vaultAddress: 'YOUR_VAULT',
+  });
+  
+  console.log(`Created RFQ: ${rfqId}`);
+  
+  // Collect quotes for 10 seconds
+  const quotes = [];
+  
+  client.subscribeToQuotes(rfqId, (quote) => {
+    quotes.push(quote);
+    console.log(`Received quote: ${formatUSDC(quote.premium)} USDC`);
+  });
+  
+  // Wait for quotes
+  await new Promise(resolve => setTimeout(resolve, 10000));
+  
+  if (quotes.length > 0) {
+    const best = quotes.reduce((a, b) => a.premium > b.premium ? a : b);
+    console.log(`Best quote: ${formatUSDC(best.premium)} USDC`);
+    
+    // Execute with wallet...
+  } else {
+    console.log('No quotes received');
+  }
+  
+  client.disconnect();
+}
+
+main().catch(console.error);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="RFQ Client API" icon="code" href="/api-reference/rfq-client">
+    Explore all RFQ client methods
+  </Card>
+  <Card title="Option Pricing" icon="calculator" href="/api-reference/option-pricing">
+    Learn about pricing utilities
+  </Card>
+  <Card title="Vault Integration" icon="vault" href="/guides/vault-integration">
+    Integrate with your vault program
+  </Card>
+  <Card title="Examples" icon="flask" href="/examples/covered-call-vault">
+    See complete examples
+  </Card>
+</CardGroup>

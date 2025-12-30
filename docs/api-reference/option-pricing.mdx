@@ -1,0 +1,309 @@
+---
+title: Option Pricing
+description: 'Black-Scholes pricing and utilities'
+---
+
+## Overview
+
+`OptionPricing` provides Black-Scholes pricing calculations, volatility estimation, and quote validation. All methods are static - no instantiation required.
+
+```typescript
+import { OptionPricing } from '@optionsfi/sdk';
+
+const price = OptionPricing.blackScholes({
+  spot: 145.50,
+  strike: 150,
+  timeToExpiry: 7 / 365,
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+
+console.log('Call:', price.call);
+console.log('Put:', price.put);
+console.log('Delta:', price.delta.call);
+```
+
+## Methods
+
+### blackScholes(params)
+
+Calculate option prices using the Black-Scholes formula.
+
+<ParamField path="params" type="BlackScholesParams" required>
+  Pricing parameters
+</ParamField>
+
+```typescript
+interface BlackScholesParams {
+  spot: number;         // Current price
+  strike: number;       // Strike price
+  timeToExpiry: number; // Time in years (e.g., 7/365 for 1 week)
+  riskFreeRate: number; // Annual rate (e.g., 0.05 for 5%)
+  volatility: number;   // Annual volatility (e.g., 0.45 for 45%)
+}
+```
+
+```typescript
+const result = OptionPricing.blackScholes({
+  spot: 145.50,
+  strike: 150,
+  timeToExpiry: 0.0192, // ~7 days
+  riskFreeRate: 0.05,
+  volatility: 0.45,
+});
+
+console.log('Call price:', result.call);   // Premium for call
+console.log('Put price:', result.put);     // Premium for put
+console.log('Call delta:', result.delta.call); // Delta for calls
+console.log('Put delta:', result.delta.put);   // Delta for puts
+```
+
+<ResponseField name="returns" type="OptionPrices">
+  Object containing call price, put price, and deltas
+</ResponseField>
+
+---
+
+### calculateCoveredCallPremium(params)
+
+Calculate the premium for a covered call position.
+
+```typescript
+const premium = OptionPricing.calculateCoveredCallPremium({
+  spot: 145.50,
+  strikePercent: 1.05,    // 5% OTM
+  daysToExpiry: 7,
+  volatility: 0.45,
+  riskFreeRate: 0.05,     // Optional, defaults to 5%
+});
+
+console.log('Premium:', premium); // ~2.15 (as percentage of spot)
+```
+
+---
+
+### timeToExpiry(expiryTimestamp)
+
+Calculate time to expiry in years from Unix timestamp.
+
+```typescript
+const expiry = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+const tte = OptionPricing.timeToExpiry(expiry);
+console.log('Time to expiry:', tte); // ~0.0192 years
+```
+
+---
+
+### premiumToBps(premium, spot)
+
+Convert premium to basis points of spot price.
+
+```typescript
+const bps = OptionPricing.premiumToBps(2.15, 145.50);
+console.log('Premium in bps:', bps); // ~148 bps
+```
+
+---
+
+### bpsToPremium(bps, spot)
+
+Convert basis points to premium.
+
+```typescript
+const premium = OptionPricing.bpsToPremium(150, 145.50);
+console.log('Premium:', premium); // 2.18
+```
+
+---
+
+### suggestStrike(spotPrice, deltaBps, optionType?)
+
+Suggest a strike price based on desired OTM percentage.
+
+<ParamField path="deltaBps" type="number" required>
+  OTM percentage in basis points (1000 = 10%)
+</ParamField>
+
+```typescript
+// 5% OTM call strike
+const callStrike = OptionPricing.suggestStrike(145, 500, 'call');
+console.log('Call strike:', callStrike); // 152.25
+
+// 5% OTM put strike  
+const putStrike = OptionPricing.suggestStrike(145, 500, 'put');
+console.log('Put strike:', putStrike); // 137.75
+```
+
+---
+
+### validateQuote(quotePremium, fairValue, maxDeviationBps?)
+
+Validate a market maker quote against calculated fair value.
+
+<ParamField path="maxDeviationBps" type="number">
+  Maximum acceptable deviation (default: 500 = 5%)
+</ParamField>
+
+```typescript
+const validation = OptionPricing.validateQuote(
+  2.50,  // Quote premium
+  2.15,  // Fair value
+  500    // Max 5% deviation
+);
+
+if (validation.isValid) {
+  console.log('Quote is acceptable');
+} else {
+  console.log('Quote rejected:', validation.reason);
+}
+```
+
+<ResponseField name="returns" type="QuoteValidation">
+```typescript
+interface QuoteValidation {
+  isValid: boolean;
+  reason?: string;
+  fairValue: number;
+  deviationBps?: number;
+}
+```
+</ResponseField>
+
+---
+
+### calculateHistoricalVolatility(prices, tradingDaysPerYear?)
+
+Calculate annualized volatility from historical prices.
+
+<ParamField path="prices" type="number[]" required>
+  Array of closing prices (oldest first)
+</ParamField>
+
+```typescript
+const prices = [140, 142, 139, 145, 143, 148, 146, 150];
+const vol = OptionPricing.calculateHistoricalVolatility(prices);
+console.log('Historical vol:', (vol * 100).toFixed(1) + '%'); // e.g., 42.5%
+```
+
+---
+
+### calculateImpliedVolatility(...)
+
+Derive implied volatility from market option price using Newton-Raphson.
+
+```typescript
+const iv = OptionPricing.calculateImpliedVolatility(
+  3.50,      // Market price
+  145,       // Spot
+  150,       // Strike
+  0.0833,    // Time to expiry (~1 month)
+  0.05,      // Risk-free rate
+  'call'     // Option type
+);
+
+console.log('Implied vol:', (iv * 100).toFixed(1) + '%');
+```
+
+<Warning>
+  Throws if the calculation doesn't converge (rare for reasonable inputs).
+</Warning>
+
+## Usage Patterns
+
+### Quote Validation Flow
+
+```typescript
+import { OptionPricing } from '@optionsfi/sdk';
+
+function validateMarketMakerQuote(quote, spotPrice) {
+  // Calculate fair value
+  const fairValue = OptionPricing.blackScholes({
+    spot: spotPrice,
+    strike: quote.strike,
+    timeToExpiry: OptionPricing.timeToExpiry(quote.expiry),
+    riskFreeRate: 0.05,
+    volatility: 0.45, // Could fetch from oracle
+  }).call;
+  
+  // Validate quote
+  const validation = OptionPricing.validateQuote(
+    Number(quote.premium) / 1e6, // Convert from smallest units
+    fairValue,
+    500 // 5% max deviation
+  );
+  
+  return {
+    isValid: validation.isValid,
+    fairValue,
+    quotePremium: Number(quote.premium) / 1e6,
+    deviationBps: validation.deviationBps,
+    reason: validation.reason,
+  };
+}
+```
+
+### Premium Calculation for UI
+
+```typescript
+function displayPremiumEstimate(spot, strikePercent, daysToExpiry) {
+  const premium = OptionPricing.calculateCoveredCallPremium({
+    spot,
+    strikePercent,
+    daysToExpiry,
+    volatility: 0.45,
+  });
+  
+  const bps = OptionPricing.premiumToBps(premium, spot);
+  const annual = (bps / daysToExpiry) * 365;
+  
+  return {
+    premium,
+    premiumBps: bps,
+    annualizedBps: annual,
+    annualizedPercent: annual / 100,
+  };
+}
+
+// Example: 5% OTM, 7-day covered call
+const estimate = displayPremiumEstimate(145, 1.05, 7);
+console.log('Premium:', estimate.premium.toFixed(2));
+console.log('Annualized APY:', estimate.annualizedPercent.toFixed(1) + '%');
+```
+
+### Greeks for Risk Management
+
+```typescript
+function assessPositionRisk(spot, strike, expiry, quantity) {
+  const tte = OptionPricing.timeToExpiry(expiry);
+  const prices = OptionPricing.blackScholes({
+    spot,
+    strike,
+    timeToExpiry: tte,
+    riskFreeRate: 0.05,
+    volatility: 0.45,
+  });
+  
+  // Delta exposure
+  const deltaExposure = prices.delta.call * quantity;
+  
+  return {
+    callPrice: prices.call,
+    delta: prices.delta.call,
+    deltaExposure,
+    dollarDelta: deltaExposure * spot,
+  };
+}
+```
+
+## Constants
+
+```typescript
+import { DEFAULT_PRICING_PARAMS } from '@optionsfi/sdk';
+
+DEFAULT_PRICING_PARAMS = {
+  riskFreeRate: 0.05,           // 5%
+  volatilityLookbackDays: 30,
+  maxQuoteDeviationBps: 500,    // 5%
+  tradingDaysPerYear: 252,
+};
+```

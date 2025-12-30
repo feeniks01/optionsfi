@@ -1,0 +1,314 @@
+---
+title: Executing Options
+description: 'Accept quotes and execute on-chain transactions'
+---
+
+## Overview
+
+Once you've selected the best quote, you need to execute the option trade on-chain. This guide covers the execution flow and error handling.
+
+## Basic Execution
+
+```typescript
+import { RFQClient, DEVNET_CONFIG } from '@optionsfi/sdk';
+
+const client = new RFQClient(DEVNET_CONFIG);
+await client.connect();
+
+// After receiving quotes...
+const rfq = client.getRFQ(rfqId);
+const bestQuote = rfq.quotes.reduce((a, b) => 
+  a.premium > b.premium ? a : b
+);
+
+// Execute the trade
+const signature = await client.executeOption(
+  rfqId,
+  bestQuote.id,
+  wallet  // Your Solana wallet adapter
+);
+
+console.log('Transaction:', signature);
+```
+
+## Wallet Integration
+
+### Wallet Adapter (React)
+
+```typescript
+import { useWallet } from '@solana/wallet-adapter-react';
+
+function TradeButton({ rfqId, quoteId }) {
+  const wallet = useWallet();
+  const [loading, setLoading] = useState(false);
+  
+  const execute = async () => {
+    if (!wallet.signTransaction) {
+      alert('Please connect wallet');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const sig = await client.executeOption(rfqId, quoteId, wallet);
+      console.log('Success:', sig);
+    } catch (error) {
+      console.error('Failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <button onClick={execute} disabled={loading}>
+      {loading ? 'Executing...' : 'Execute Trade'}
+    </button>
+  );
+}
+```
+
+### Keypair (Backend/Scripts)
+
+```typescript
+import { Keypair, Transaction } from '@solana/web3.js';
+
+const keypair = Keypair.fromSecretKey(/* your key */);
+
+// Create a wallet interface
+const wallet = {
+  signTransaction: async (tx: Transaction) => {
+    tx.sign(keypair);
+    return tx;
+  },
+};
+
+const sig = await client.executeOption(rfqId, quoteId, wallet);
+```
+
+## Pre-Execution Checks
+
+Before executing, verify:
+
+```typescript
+async function safeExecute(
+  client: RFQClient,
+  rfqId: string,
+  quoteId: string,
+  wallet: any
+) {
+  // 1. Check RFQ status
+  const rfq = client.getRFQ(rfqId);
+  if (!rfq) {
+    throw new Error('RFQ not found');
+  }
+  if (rfq.status !== 'open') {
+    throw new Error(`RFQ is ${rfq.status}, cannot execute`);
+  }
+  
+  // 2. Find and validate quote
+  const quote = rfq.quotes.find(q => q.id === quoteId);
+  if (!quote) {
+    throw new Error('Quote not found');
+  }
+  
+  // 3. Check quote expiration
+  const now = Date.now();
+  if (quote.expiresAt < now + 5000) { // 5 second buffer
+    throw new Error('Quote has expired');
+  }
+  
+  // 4. Check wallet balance (optional)
+  // const balance = await getWalletBalance(wallet);
+  
+  // 5. Execute
+  return await client.executeOption(rfqId, quoteId, wallet);
+}
+```
+
+## Transaction Flow
+
+<Steps>
+  <Step title="Accept Quote">
+    Client notifies RFQ Router of quote acceptance
+  </Step>
+  <Step title="Lock Quote">
+    Router locks the quote with market maker
+  </Step>
+  <Step title="Build Transaction">
+    SDK builds the vault instruction
+  </Step>
+  <Step title="Sign Transaction">
+    Wallet signs the transaction
+  </Step>
+  <Step title="Submit Transaction">
+    Transaction sent to Solana network
+  </Step>
+  <Step title="Confirm">
+    Wait for transaction confirmation
+  </Step>
+</Steps>
+
+## Error Handling
+
+```typescript
+async function executeWithRetry(
+  client: RFQClient,
+  rfqId: string,
+  quoteId: string,
+  wallet: any,
+  maxRetries: number = 3
+) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const sig = await client.executeOption(rfqId, quoteId, wallet);
+      return { success: true, signature: sig };
+    } catch (error: any) {
+      console.error(`Attempt ${attempt} failed:`, error.message);
+      
+      // Non-retryable errors
+      if (error.message.includes('Quote has expired')) {
+        return { success: false, error: 'Quote expired' };
+      }
+      if (error.message.includes('RFQ not found')) {
+        return { success: false, error: 'RFQ not found' };
+      }
+      if (error.message.includes('insufficient funds')) {
+        return { success: false, error: 'Insufficient balance' };
+      }
+      
+      // Wait before retry
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
+    }
+  }
+  
+  return { success: false, error: 'Max retries exceeded' };
+}
+```
+
+## Post-Execution
+
+### Verify On-Chain State
+
+```typescript
+import { VaultInstructions } from '@optionsfi/sdk';
+
+async function verifyExecution(
+  vaultIx: VaultInstructions,
+  assetId: string,
+  expectedExposure: bigint
+) {
+  // Fetch updated vault state
+  const vault = await vaultIx.fetchVault(assetId);
+  
+  if (!vault) {
+    throw new Error('Vault not found');
+  }
+  
+  // Verify exposure was recorded
+  console.log('Epoch exposure:', vault.epochNotionalExposed.toString());
+  console.log('Expected:', expectedExposure.toString());
+  
+  return vault.epochNotionalExposed >= expectedExposure;
+}
+```
+
+### Record in Database
+
+```typescript
+interface TradeRecord {
+  rfqId: string;
+  quoteId: string;
+  marketMaker: string;
+  asset: string;
+  strike: number;
+  expiry: number;
+  quantity: string;
+  premium: string;
+  signature: string;
+  executedAt: number;
+}
+
+async function recordTrade(trade: TradeRecord) {
+  // Save to your database
+  await db.trades.insert(trade);
+  
+  // Emit event for monitoring
+  events.emit('trade:executed', trade);
+}
+```
+
+## Handling Filled RFQs
+
+After execution, the RFQ status changes to `filled`:
+
+```typescript
+// Subscribe to fill events
+client.onEvent((event) => {
+  if (event.type === 'rfq_filled') {
+    const rfq = client.getRFQ(event.rfqId);
+    
+    console.log('RFQ Filled!');
+    console.log('  Quote ID:', rfq.fill.quoteId);
+    console.log('  Market Maker:', rfq.fill.marketMaker);
+    console.log('  Premium:', rfq.fill.premium.toString());
+    console.log('  Transaction:', rfq.fill.transactionSignature);
+  }
+});
+```
+
+## Manual Transaction Building
+
+For advanced use cases, build transactions manually:
+
+```typescript
+import { VaultInstructions, deriveVaultPda } from '@optionsfi/sdk';
+import { Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+
+async function manualExecution(
+  connection: Connection,
+  assetId: string,
+  notional: bigint,
+  premium: bigint,
+  authority: Keypair
+) {
+  const vaultIx = new VaultInstructions(connection);
+  await vaultIx.initialize();
+  
+  const [vaultPda] = deriveVaultPda(assetId);
+  
+  // Build instruction
+  const ix = await vaultIx.recordNotionalExposure({
+    vault: vaultPda,
+    authority: authority.publicKey,
+    notionalTokens: notional,
+    premium,
+  });
+  
+  // Build and send transaction
+  const tx = new Transaction().add(ix);
+  tx.feePayer = authority.publicKey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  
+  const sig = await sendAndConfirmTransaction(connection, tx, [authority]);
+  return sig;
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Verify Before Execute" icon="magnifying-glass">
+    Always check RFQ status and quote expiration before execution
+  </Card>
+  <Card title="Handle All Errors" icon="triangle-exclamation">
+    Implement comprehensive error handling for all failure modes
+  </Card>
+  <Card title="Confirm Transactions" icon="check-double">
+    Wait for transaction confirmation before updating state
+  </Card>
+  <Card title="Log Everything" icon="scroll">
+    Record all trade details for audit and debugging
+  </Card>
+</CardGroup>
