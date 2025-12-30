@@ -43,11 +43,12 @@ import type {
 } from '../types';
 import { VAULT_PROGRAM_ID, deriveVaultPda } from '../constants';
 
+// Import bundled IDL
+import vaultIdl from '../idl/vault.json';
+
 // Token Program ID constant (avoid peer dependency on @solana/spl-token)
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
-// NOTE: The IDL will be bundled with the SDK or fetched from chain
-// For now, we reference it as an external file that integrators provide
 type VaultProgram = anchor.Program;
 
 /**
@@ -56,17 +57,17 @@ type VaultProgram = anchor.Program;
 export class VaultInstructions {
     private connection: Connection;
     private program: VaultProgram | null = null;
-    private idl: any = null;
+    private idl: any;
 
     /**
      * Create a new VaultInstructions client
      * 
      * @param connection - Solana connection
-     * @param idl - Optional IDL (will use bundled IDL if not provided)
+     * @param idl - Optional IDL (uses bundled vault IDL by default)
      */
     constructor(connection: Connection, idl?: any) {
         this.connection = connection;
-        this.idl = idl;
+        this.idl = idl || vaultIdl;
     }
 
     /**
@@ -75,11 +76,6 @@ export class VaultInstructions {
      * @param wallet - Optional wallet for signing (not required for instruction building)
      */
     async initialize(wallet?: anchor.Wallet): Promise<void> {
-        if (!this.idl) {
-            throw new Error(
-                'IDL not provided. Pass the vault IDL to the constructor or call setIDL().'
-            );
-        }
 
         const provider = new anchor.AnchorProvider(
             this.connection,

@@ -7,6 +7,7 @@ SDK for integrating with OptionsFi's on-chain options settlement infrastructure 
 - 🔌 **RFQ Client** - Create RFQs and receive quotes from market makers
 - 📊 **Option Pricing** - Black-Scholes pricing and volatility calculations
 - 🏦 **Vault Instructions** - Build transactions for the vault program
+- 📦 **Bundled IDL** - Vault program IDL included, no external dependencies needed
 - ✅ **Type-Safe** - Full TypeScript support with comprehensive types
 
 ## Installation
@@ -87,7 +88,9 @@ import { VaultInstructions, deriveVaultPda } from '@optionsfi/sdk';
 import { Connection } from '@solana/web3.js';
 
 const connection = new Connection('https://api.devnet.solana.com');
-const instructions = new VaultInstructions(connection, vaultIdl);
+
+// SDK includes bundled vault IDL - no need to provide it
+const instructions = new VaultInstructions(connection);
 await instructions.initialize();
 
 // Fetch vault data
@@ -100,6 +103,7 @@ const capacity = VaultInstructions.getRemainingCapacity(vault);
 console.log('Remaining capacity:', capacity);
 
 // Build transaction instruction
+const [vaultPda] = deriveVaultPda('NVDAX');
 const ix = await instructions.recordNotionalExposure({
   vault: vaultPda,
   authority: walletPublicKey,

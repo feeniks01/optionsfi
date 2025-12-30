@@ -118,3 +118,6 @@ export {
     RFQ_DEFAULTS,
     TOKEN_DECIMALS,
 } from './constants';
+
+// Bundled IDL - export for advanced usage
+export { default as VAULT_IDL } from './idl/vault.json';
