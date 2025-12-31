@@ -106,7 +106,21 @@ async fn connect_to_router(
     wallet: Arc<Keypair>,
     rpc: Arc<RpcClient>
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let url_string = format!("{}?makerId={}", base_url, mm_id);
+    // Get USDC mint for deriving token account
+    let usdc_mint = Pubkey::new_from_array(bs58::decode(USDC_MINT_STR).into_vec()?.try_into().unwrap());
+    
+    // Derive the MM's USDC token account (ATA)
+    let wallet_pubkey = wallet.pubkey();
+    let usdc_account = get_associated_token_address(&wallet_pubkey, &usdc_mint);
+    
+    // Include wallet and usdcAccount in URL (required by router)
+    let url_string = format!(
+        "{}?makerId={}&wallet={}&usdcAccount={}", 
+        base_url, 
+        mm_id,
+        wallet_pubkey,
+        usdc_account
+    );
     let url = url::Url::parse(&url_string)?;
 
     let mut request = url.into_client_request()?;
