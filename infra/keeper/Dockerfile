@@ -2,14 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files from infra/keeper
-COPY infra/keeper/package*.json ./
+# Copy package files
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
 
-# Copy keeper source
-COPY infra/keeper/ .
+# Copy source and IDL
+COPY . .
 
 # Build TypeScript
 RUN npm run build
