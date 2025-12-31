@@ -1,21 +1,14 @@
 /**
- * OptionsFi SDK - Option Pricing Utilities
- * 
- * Black-Scholes pricing and volatility calculations extracted from
- * the keeper service. Use these utilities to:
- * - Calculate fair values for options
- * - Validate market maker quotes
- * - Suggest strike prices based on delta
+ * Black-Scholes option pricing and volatility calculations.
  * 
  * @example
  * ```typescript
  * import { OptionPricing } from '@optionsfi/sdk';
  * 
- * // Calculate call option fair value
  * const price = OptionPricing.blackScholes({
  *   spot: 145.50,
  *   strike: 150,
- *   timeToExpiry: 7 / 365, // 1 week
+ *   timeToExpiry: 7 / 365,
  *   riskFreeRate: 0.05,
  *   volatility: 0.45,
  * });

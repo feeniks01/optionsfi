@@ -1,5 +1,5 @@
 /**
- * OptionsFi SDK - Default Configuration
+ * Default configuration for devnet and mainnet.
  */
 
 import type { RFQConfig } from '../types';
@@ -58,10 +58,13 @@ export const RFQ_DEFAULTS = {
 };
 
 /**
- * Token decimals for common tokens
+ * Token decimals for common tokens.
+ * 
+ * Note: NVDAX is shown as an example tokenized stock with 6 decimals.
+ * Add your own token configurations as needed.
  */
 export const TOKEN_DECIMALS = {
     USDC: 6,
     SOL: 9,
-    NVDAX: 6,
+    NVDAX: 6, // Example: tokenized NVIDIA stock
 } as const;

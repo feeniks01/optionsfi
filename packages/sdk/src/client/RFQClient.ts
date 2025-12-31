@@ -1,9 +1,5 @@
 /**
- * OptionsFi SDK - RFQ Client
- * 
- * Main client for interacting with the OptionsFi RFQ infrastructure.
- * Connects to the RFQ router via WebSocket to create RFQs, receive quotes,
- * and execute options trades.
+ * WebSocket client for interacting with the RFQ router.
  * 
  * @example
  * ```typescript
@@ -17,13 +13,13 @@
  *   side: 'sell',
  *   optionType: 'call',
  *   strike: 150,
- *   expiry: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+ *   expiry: Math.floor(Date.now() / 1000) + 86400 * 7,
  *   quantity: BigInt(1000 * 1e6),
- *   vaultAddress: 'your-vault-address',
+ *   vaultAddress: vaultPubkey.toString(),
  * });
  * 
  * client.subscribeToQuotes(rfqId, (quote) => {
- *   console.log('Received quote:', quote);
+ *   console.log('Quote received:', quote);
  * });
  * ```
  */

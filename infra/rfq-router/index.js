@@ -210,13 +210,62 @@ wss.on("connection", (ws, req) => {
 function handleMakerMessage(makerId, msg) {
     if (msg.type === "quote" && msg.rfqId && msg.premium) {
         const rfq = rfqs.get(msg.rfqId);
-        if (rfq && !rfq.filled) {
+        if (!rfq) {
+            console.warn(`Quote received for unknown RFQ: ${msg.rfqId}`);
+            return;
+        }
+
+        // Check if RFQ is still open
+        if (rfq.status !== 'open') {
+            console.warn(`Quote received for closed RFQ: ${msg.rfqId} (status: ${rfq.status})`);
+            return;
+        }
+
+        // Check if quote is within deadline
+        if (Date.now() > rfq.expiresAt) {
+            console.warn(`Quote received after deadline for RFQ: ${msg.rfqId}`);
+            rfq.status = 'expired';
+            return;
+        }
+
+        // Validate quote has required fields
+        if (!msg.premium || typeof msg.premium !== 'number') {
+            console.warn(`Invalid quote format from ${makerId} for RFQ: ${msg.rfqId}`);
+            return;
+        }
+
+        // Check for duplicate quotes from same maker
+        const existingQuote = rfq.quotes.find(q => q.maker === makerId);
+        if (existingQuote) {
+            console.warn(`Duplicate quote from ${makerId} for RFQ: ${msg.rfqId}, updating...`);
+            existingQuote.premium = msg.premium;
+            existingQuote.timestamp = Date.now();
+            existingQuote.validUntil = msg.validUntil || (Date.now() + 60000); // 60s default
+        } else {
             rfq.quotes.push({
+                id: `quote_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                 maker: makerId,
                 premium: msg.premium,
                 timestamp: Date.now(),
+                validUntil: msg.validUntil || (Date.now() + 60000), // 60s default
             });
-            logEvent("quote_received", { rfqId: msg.rfqId, maker: makerId, premium: msg.premium / 1e6 });
+        }
+
+        logEvent("quote_received", { 
+            rfqId: msg.rfqId, 
+            maker: makerId, 
+            premium: msg.premium / 1e6,
+            quoteCount: rfq.quotes.length,
+            minQuotes: rfq.minQuotes
+        });
+
+        // Auto-close if we have enough quotes
+        if (rfq.quotes.length >= rfq.minQuotes && rfq.minQuotes > 1) {
+            logEvent("rfq_quote_threshold_met", {
+                rfqId: msg.rfqId,
+                quoteCount: rfq.quotes.length,
+                minQuotes: rfq.minQuotes
+            });
         }
     }
 }
@@ -235,7 +284,18 @@ function broadcastToMakers(message) {
 // REST API
 
 app.post("/rfq", (req, res) => {
-    const { underlying, optionType, strike, expiry, size, premiumFloor } = req.body;
+    const { 
+        underlying, 
+        optionType, 
+        strike, 
+        expiry, 
+        size, 
+        premiumFloor,
+        vaultAddress,
+        anonymous = false,
+        minQuotes = 1,
+        quoteTimeout = 30000
+    } = req.body;
 
     const rfqId = `rfq_${Date.now()}_${uuidv4().slice(0, 6)}`;
     const rfq = {
@@ -246,16 +306,31 @@ app.post("/rfq", (req, res) => {
         expiry,
         size,
         premiumFloor: premiumFloor || 0,
+        vaultAddress: anonymous ? null : vaultAddress, // Anonymize if requested
+        anonymous,
+        minQuotes,
+        quoteTimeout,
         quotes: [],
         filled: null,
+        status: 'open',
         createdAt: Date.now(),
+        expiresAt: Date.now() + quoteTimeout,
     };
 
     rfqs.set(rfqId, rfq);
-    logEvent("rfq_created", { rfqId, underlying, optionType, strike, size: size, makerCount: makers.size });
+    logEvent("rfq_created", { 
+        rfqId, 
+        underlying, 
+        optionType, 
+        strike, 
+        size, 
+        anonymous,
+        minQuotes,
+        makerCount: makers.size 
+    });
 
-    // Broadcast to makers
-    broadcastToMakers({
+    // Broadcast to all connected makers
+    const broadcastData = {
         type: "rfq",
         rfqId,
         underlying,
@@ -263,9 +338,19 @@ app.post("/rfq", (req, res) => {
         strike,
         expiry,
         size,
-    });
+        vaultAddress: rfq.vaultAddress, // null if anonymous
+        quoteDeadline: rfq.expiresAt,
+    };
+    
+    broadcastToMakers(broadcastData);
 
-    res.json({ rfqId, status: "open" });
+    res.json({ 
+        rfqId, 
+        status: "open",
+        broadcastedTo: makers.size,
+        minQuotes,
+        expiresAt: rfq.expiresAt
+    });
 });
 
 app.get("/rfq/:rfqId", (req, res) => {
@@ -273,7 +358,74 @@ app.get("/rfq/:rfqId", (req, res) => {
     if (!rfq) {
         return res.status(404).json({ error: "RFQ not found" });
     }
-    res.json(rfq);
+    
+    // Calculate time remaining
+    const timeRemaining = Math.max(0, rfq.expiresAt - Date.now());
+    
+    res.json({
+        ...rfq,
+        timeRemaining,
+        isExpired: Date.now() > rfq.expiresAt
+    });
+});
+
+// New endpoint: Wait for quotes with polling
+app.post("/rfq/:rfqId/wait", async (req, res) => {
+    const rfq = rfqs.get(req.params.rfqId);
+    if (!rfq) {
+        return res.status(404).json({ error: "RFQ not found" });
+    }
+
+    const { minQuotes, timeout } = req.body;
+    const targetQuotes = minQuotes || rfq.minQuotes || 1;
+    const maxWait = Math.min(timeout || 30000, rfq.expiresAt - Date.now());
+    const startTime = Date.now();
+    const pollInterval = 500; // Check every 500ms
+
+    // Poll for quotes
+    const checkQuotes = () => {
+        return new Promise((resolve) => {
+            const interval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                
+                // Check if we have enough quotes
+                if (rfq.quotes.length >= targetQuotes) {
+                    clearInterval(interval);
+                    resolve({ success: true, reason: 'target_met' });
+                    return;
+                }
+                
+                // Check if RFQ expired
+                if (Date.now() > rfq.expiresAt) {
+                    clearInterval(interval);
+                    resolve({ success: false, reason: 'rfq_expired' });
+                    return;
+                }
+                
+                // Check if timeout reached
+                if (elapsed >= maxWait) {
+                    clearInterval(interval);
+                    resolve({ success: false, reason: 'timeout' });
+                    return;
+                }
+            }, pollInterval);
+        });
+    };
+
+    const result = await checkQuotes();
+    
+    res.json({
+        rfqId: rfq.rfqId,
+        success: result.success,
+        reason: result.reason,
+        quotesReceived: rfq.quotes.length,
+        targetQuotes,
+        quotes: rfq.quotes.map(q => ({
+            maker: q.maker,
+            premium: q.premium,
+            timestamp: q.timestamp
+        }))
+    });
 });
 
 app.post("/rfq/:rfqId/fill", (req, res) => {
@@ -283,30 +435,89 @@ app.post("/rfq/:rfqId/fill", (req, res) => {
     }
 
     if (rfq.filled) {
-        return res.json({ rfqId: rfq.rfqId, filled: rfq.filled });
+        return res.json({ 
+            rfqId: rfq.rfqId, 
+            status: 'filled',
+            filled: rfq.filled,
+            totalQuotes: rfq.quotes.length 
+        });
+    }
+
+    // Check if RFQ has expired
+    if (Date.now() > rfq.expiresAt) {
+        rfq.status = 'expired';
+        logEvent("rfq_expired", { rfqId: rfq.rfqId, quoteCount: rfq.quotes.length });
+        return res.json({ 
+            rfqId: rfq.rfqId, 
+            status: 'expired',
+            filled: null, 
+            message: "RFQ expired",
+            totalQuotes: rfq.quotes.length 
+        });
     }
 
     if (rfq.quotes.length === 0) {
-        return res.json({ rfqId: rfq.rfqId, filled: null, message: "No quotes received" });
+        return res.json({ 
+            rfqId: rfq.rfqId, 
+            status: 'open',
+            filled: null, 
+            message: "No quotes received",
+            connectedMakers: makers.size 
+        });
+    }
+
+    // Check minimum quotes requirement
+    if (rfq.quotes.length < rfq.minQuotes) {
+        return res.json({ 
+            rfqId: rfq.rfqId, 
+            status: 'open',
+            filled: null, 
+            message: `Waiting for more quotes (${rfq.quotes.length}/${rfq.minQuotes})`,
+            quotes: rfq.quotes.length
+        });
+    }
+
+    // Filter valid quotes (above floor and not expired)
+    const now = Date.now();
+    const validQuotes = rfq.quotes.filter(q => 
+        q.premium >= rfq.premiumFloor && 
+        (!q.validUntil || q.validUntil > now)
+    );
+
+    if (validQuotes.length === 0) {
+        rfq.status = 'no_valid_quotes';
+        return res.json({ 
+            rfqId: rfq.rfqId, 
+            status: 'no_valid_quotes',
+            filled: null, 
+            message: "No quotes above floor or all quotes expired",
+            totalQuotes: rfq.quotes.length,
+            validQuotes: 0
+        });
     }
 
     // Find best quote (highest premium for selling options)
-    const validQuotes = rfq.quotes.filter(q => q.premium >= rfq.premiumFloor);
-    if (validQuotes.length === 0) {
-        return res.json({ rfqId: rfq.rfqId, filled: null, message: "No quotes above floor" });
-    }
+    const rankedQuotes = validQuotes
+        .sort((a, b) => b.premium - a.premium)
+        .map((q, index) => ({ ...q, rank: index + 1 }));
 
-    const bestQuote = validQuotes.reduce((best, q) =>
-        q.premium > best.premium ? q : best
-    );
+    const bestQuote = rankedQuotes[0];
 
     rfq.filled = {
+        quoteId: bestQuote.id,
         maker: bestQuote.maker,
         premium: bestQuote.premium,
         filledAt: Date.now(),
     };
+    rfq.status = 'filled';
 
-    logEvent("rfq_filled", { rfqId: rfq.rfqId, maker: bestQuote.maker, premium: bestQuote.premium / 1e6 });
+    logEvent("rfq_filled", { 
+        rfqId: rfq.rfqId, 
+        maker: bestQuote.maker, 
+        premium: bestQuote.premium / 1e6,
+        totalQuotes: rfq.quotes.length,
+        validQuotes: validQuotes.length
+    });
 
     // Notify winning maker
     const makerWs = makers.get(bestQuote.maker);
@@ -319,7 +530,31 @@ app.post("/rfq/:rfqId/fill", (req, res) => {
         }));
     }
 
-    res.json({ rfqId: rfq.rfqId, filled: rfq.filled });
+    // Notify losing makers
+    for (const quote of rankedQuotes.slice(1)) {
+        const loserWs = makers.get(quote.maker);
+        if (loserWs) {
+            loserWs.send(JSON.stringify({
+                type: "rfq_lost",
+                rfqId: rfq.rfqId,
+                yourQuote: quote.premium,
+                winningQuote: bestQuote.premium,
+            }));
+        }
+    }
+
+    res.json({ 
+        rfqId: rfq.rfqId, 
+        status: 'filled',
+        filled: rfq.filled,
+        totalQuotes: rfq.quotes.length,
+        validQuotes: validQuotes.length,
+        rankedQuotes: rankedQuotes.map(q => ({
+            maker: q.maker,
+            premium: q.premium,
+            rank: q.rank
+        }))
+    });
 });
 
 // Health endpoint

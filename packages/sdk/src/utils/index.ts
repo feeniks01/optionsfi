@@ -1,6 +1,17 @@
 /**
- * OptionsFi SDK - Utilities
+ * Utility function exports.
  */
+
+// Asset utilities
+export {
+    isWithinTradingHours,
+    getUSEquityTradingHours,
+    createCryptoAsset,
+    createTokenizedStockAsset,
+    createTokenizedTreasuryAsset,
+    validateAssetDescriptor,
+    canCreateRFQ,
+} from './asset';
 
 // Pricing utilities
 export { OptionPricing } from './pricing';

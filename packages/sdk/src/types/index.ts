@@ -1,6 +1,18 @@
 /**
- * OptionsFi SDK - Type Exports
+ * Type definitions for the SDK.
  */
+
+// Asset Types
+export type {
+    AssetType,
+    PriceFeedSource,
+    TradingHours,
+    CorporateActionType,
+    CorporateAction,
+    AssetDescriptor,
+    AssetRegistryEntry,
+    AssetVolatility,
+} from './asset';
 
 // RFQ Types
 export type {

@@ -1,5 +1,5 @@
 /**
- * OptionsFi SDK - Input Validation Utilities
+ * Input validation utilities with type checking.
  */
 
 import type { RFQParams, BlackScholesParams } from '../types';

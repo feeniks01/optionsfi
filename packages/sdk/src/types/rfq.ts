@@ -1,7 +1,5 @@
 /**
- * OptionsFi SDK - RFQ Types
- * 
- * Types for Request for Quote (RFQ) operations.
+ * RFQ and quote type definitions.
  */
 
 /**
@@ -51,6 +49,15 @@ export interface RFQParams {
 
     /** Minimum acceptable premium (optional floor) */
     premiumFloor?: bigint;
+
+    /** Whether to anonymize vault identity in RFQ broadcast (default: false) */
+    anonymous?: boolean;
+
+    /** Minimum number of quotes required (default: 1) */
+    minQuotes?: number;
+
+    /** Maximum time to wait for quotes in milliseconds (default: 30000) */
+    quoteTimeout?: number;
 }
 
 /**
@@ -74,6 +81,9 @@ export interface Quote {
 
     /** When this quote expires (Unix milliseconds) */
     expiresAt: number;
+
+    /** Optional: Quote expiry duration in seconds (for validation) */
+    validUntil?: number;
 }
 
 /**

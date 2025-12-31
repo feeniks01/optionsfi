@@ -1,7 +1,5 @@
 /**
- * OptionsFi SDK - Option Types
- * 
- * Types for option pricing and parameters.
+ * Option pricing and position type definitions.
  */
 
 /**

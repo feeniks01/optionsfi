@@ -1,7 +1,5 @@
 /**
- * OptionsFi SDK - Vault Types
- * 
- * Types for interacting with OptionsFi vault accounts.
+ * Vault account and instruction parameter types.
  */
 
 import type { PublicKey } from '@solana/web3.js';

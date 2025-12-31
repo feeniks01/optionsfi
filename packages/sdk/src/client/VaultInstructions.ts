@@ -1,9 +1,5 @@
 /**
- * OptionsFi SDK - Vault Instructions
- * 
- * Transaction builders for interacting with the OptionsFi Vault program.
- * These utilities help you build Solana transactions without needing to
- * understand the full Anchor program interface.
+ * Transaction builders for vault program instructions.
  * 
  * @example
  * ```typescript

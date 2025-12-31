@@ -1,5 +1,5 @@
 /**
- * OptionsFi SDK - Program Addresses
+ * Program addresses and mint constants.
  */
 
 import { PublicKey } from '@solana/web3.js';
@@ -12,10 +12,20 @@ export const VAULT_PROGRAM_ID = new PublicKey(
 );
 
 /**
- * Mock USDC mint (devnet)
+ * USDC mint address (devnet)
+ * 
+ * Note: This is the official Circle USDC devnet mint.
+ * For mainnet, use: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
  */
-export const MOCK_USDC_MINT = new PublicKey(
+export const DEVNET_USDC_MINT = new PublicKey(
     'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr'
+);
+
+/**
+ * USDC mint address (mainnet)
+ */
+export const MAINNET_USDC_MINT = new PublicKey(
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 );
 
 /**

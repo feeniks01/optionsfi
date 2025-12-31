@@ -1,5 +1,5 @@
 /**
- * OptionsFi SDK - Formatting Utilities
+ * Token amount and price formatting utilities.
  */
 
 import { TOKEN_DECIMALS } from '../constants';

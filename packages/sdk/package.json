@@ -1,6 +1,6 @@
 {
     "name": "@optionsfi/sdk",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "OptionsFi SDK - On-chain options settlement infrastructure for Solana",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
@@ -14,7 +14,9 @@
     },
     "files": [
         "dist",
-        "README.md"
+        "README.md",
+        "CHANGELOG.md",
+        "MIGRATION.md"
     ],
     "scripts": {
         "build": "tsup src/index.ts --format cjs,esm --dts --clean",
@@ -32,17 +34,23 @@
         "rfq",
         "derivatives",
         "trading",
-        "sdk"
+        "sdk",
+        "blockchain",
+        "finance",
+        "tokenized-assets",
+        "covered-calls",
+        "vaults"
     ],
-    "author": "OptionsFi Team",
+    "author": "OptionsFi Team <team@optionsfi.xyz>",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/feeniks01/optionsfi"
+        "url": "https://github.com/optionsfi/optionsfi.git",
+        "directory": "packages/sdk"
     },
     "homepage": "https://optionsfi.xyz",
     "bugs": {
-        "url": "https://github.com/feeniks01/optionsfi/issues"
+        "url": "https://github.com/optionsfi/optionsfi/issues"
     },
     "engines": {
         "node": ">=18.0.0"

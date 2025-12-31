@@ -1,5 +1,5 @@
 /**
- * OptionsFi SDK - Client Exports
+ * Client exports for RFQ and vault operations.
  */
 
 export { RFQClient } from './RFQClient';

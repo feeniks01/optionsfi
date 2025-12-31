@@ -105,7 +105,8 @@ export {
 // Constants
 export {
     VAULT_PROGRAM_ID,
-    MOCK_USDC_MINT,
+    DEVNET_USDC_MINT,
+    MAINNET_USDC_MINT,
     PYTH_PRICE_FEEDS,
     PYTH_HERMES_URL,
     deriveVaultPda,

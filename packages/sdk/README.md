@@ -1,14 +1,15 @@
 # @optionsfi/sdk
 
-SDK for integrating with OptionsFi's on-chain options settlement infrastructure on Solana.
+TypeScript SDK for OptionsFi, a decentralized options settlement protocol built on Solana. Enables developers to build applications with covered call vaults, RFQ-based options trading, and support for multiple asset types.
 
 ## Features
 
-- 🔌 **RFQ Client** - Create RFQs and receive quotes from market makers
-- 📊 **Option Pricing** - Black-Scholes pricing and volatility calculations
-- 🏦 **Vault Instructions** - Build transactions for the vault program
-- 📦 **Bundled IDL** - Vault program IDL included, no external dependencies needed
-- ✅ **Type-Safe** - Full TypeScript support with comprehensive types
+- 🌐 **Multi-Asset Support** - Trade options on crypto, tokenized stocks, and tokenized treasuries
+- 🔌 **RFQ System** - Request quotes from multiple market makers with competitive pricing
+- 📊 **Options Pricing** - Black-Scholes calculations with Greeks and volatility tools
+- 🏦 **Vault Operations** - Interact with on-chain covered call vaults
+- 🔒 **Anonymous RFQs** - Privacy-preserving quote requests for large institutional flows
+- ✅ **Type-Safe** - Comprehensive TypeScript types with runtime validation
 
 ## Installation
 
@@ -20,13 +21,13 @@ yarn add @optionsfi/sdk
 pnpm add @optionsfi/sdk
 ```
 
-## Peer Dependencies
-
-This SDK requires the following peer dependencies:
+**Peer Dependencies:**
 
 ```bash
 npm install @coral-xyz/anchor @solana/web3.js
 ```
+
+These allow you to use your preferred versions of Anchor and Solana web3.js.
 
 ## Quick Start
 
@@ -199,6 +200,28 @@ const client = new RFQClient({
 });
 ```
 
+## Documentation
+
+For comprehensive guides and API documentation, visit [docs.optionsfi.xyz](https://docs.optionsfi.xyz).
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/optionsfi/optionsfi/issues)
+- **Documentation**: [docs.optionsfi.xyz](https://docs.optionsfi.xyz)
+- **Website**: [optionsfi.xyz](https://optionsfi.xyz)
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+
+## Security
+
+For security concerns, please email security@optionsfi.xyz. Do not open public issues for security vulnerabilities.
+
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
+
+---
+
+Built with ❤️ by the OptionsFi team
