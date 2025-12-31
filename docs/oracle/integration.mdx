@@ -1,0 +1,295 @@
+---
+title: 'Integration Guide'
+description: 'How to integrate the hybrid oracle into your application'
+---
+
+## Installation
+
+Install the oracle package:
+
+```bash
+npm install @optionsfi/oracle
+```
+
+## Database Setup
+
+### 1. Create Supabase Project
+
+<Steps>
+  <Step title="Sign up for Supabase">
+    Go to [supabase.com](https://supabase.com) and create a new project
+  </Step>
+  
+  <Step title="Run the schema">
+    Copy the SQL from `packages/oracle/supabase-schema.sql` and run it in the SQL Editor
+  </Step>
+  
+  <Step title="Get your credentials">
+    Copy your project URL and anon key from Settings → API
+  </Step>
+</Steps>
+
+### 2. Configure Environment
+
+Create a `.env` file:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key-here
+SOLANA_RPC_URL=https://api.devnet.solana.com
+```
+
+## Backfill Historical Data
+
+Before using the oracle, backfill historical price data:
+
+```bash
+cd packages/oracle
+npm run setup
+```
+
+This will:
+- Test database connection
+- Backfill 90 days of historical prices
+- Verify data integrity
+
+<Info>
+You need at least 30 data points for reliable volatility calculations.
+</Info>
+
+## Basic Usage
+
+### Get Hybrid Volatility
+
+```typescript
+import { PriceDatabase, HybridVolatilityEngine } from '@optionsfi/oracle';
+
+const config = {
+  supabaseUrl: process.env.SUPABASE_URL!,
+  supabaseKey: process.env.SUPABASE_KEY!,
+  solanaRpcUrl: process.env.SOLANA_RPC_URL!
+};
+
+const db = new PriceDatabase(config);
+const hybridEngine = new HybridVolatilityEngine(db);
+
+const result = await hybridEngine.calculateHybridVolatility({
+  assetId: 'NVDAX',
+  tradFiTicker: 'NVDA',
+  onChainMint: 'G5VWnnWRxVvuTqRCEQNNGEdRmS42hMTyh8DAN9MHecLn',
+  lookbackDays: 30
+});
+
+console.log('Hybrid Volatility:', result.finalVolatility);
+console.log('Divergence:', result.divergence);
+console.log('Risk Level:', result.recommendation);
+```
+
+### Get Risk-Adjusted Pricing
+
+```typescript
+import { PricingOracle } from '@optionsfi/oracle';
+
+const oracle = new PricingOracle(hybridEngine);
+
+const pricing = await oracle.calculatePricing({
+  assetId: 'NVDAX',
+  spot: 145.50,
+  strike: 150,
+  daysToExpiry: 7,
+  optionType: 'call'
+});
+
+console.log('Fair Value:', pricing.fairValue);
+console.log('Min Premium:', pricing.minPremium);
+console.log('Risk Buffer:', pricing.riskAdjustment);
+```
+
+## Keeper Integration
+
+Update your keeper service to use the oracle:
+
+### 1. Install Oracle
+
+```bash
+cd infra/keeper
+npm install ../../packages/oracle
+```
+
+### 2. Enable Oracle
+
+Add to your `.env`:
+
+```bash
+USE_ORACLE=true
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+```
+
+### 3. Run Keeper
+
+```bash
+npm run dev
+```
+
+The keeper will now:
+- Use hybrid volatility for premium calculations
+- Apply risk buffers based on divergence
+- Log detailed volatility metrics
+- Alert on high divergence (>25%)
+
+## Continuous Price Sampling
+
+For production, run continuous price sampling:
+
+```bash
+cd packages/oracle
+npm run sample
+```
+
+This samples prices every 5 minutes and stores them in the database.
+
+<Tip>
+Run this as a background service using PM2 or systemd for production deployments.
+</Tip>
+
+## Advanced Configuration
+
+### Custom Asset Configuration
+
+Add new assets to the database:
+
+```sql
+INSERT INTO oracle_assets (
+  asset_id, name, asset_type, mint_address, 
+  tradfi_ticker, decimals
+) VALUES (
+  'SOL', 'Solana', 'crypto',
+  'So11111111111111111111111111111111111111112',
+  NULL, 9
+);
+```
+
+### Adjust Weighting
+
+Customize the hybrid weighting by modifying `HybridVolatilityEngine`:
+
+```typescript
+// Default: max 70% on-chain weight
+private calculateWeight(confidence: number, dataPoints: number): number {
+  let weight = confidence * 0.4 + dataPointFactor * 0.3;
+  return Math.min(weight, 0.7); // Adjust this cap
+}
+```
+
+### Custom Risk Buffers
+
+Modify risk adjustment levels in `PricingOracle`:
+
+```typescript
+private calculateRiskAdjustment(volResult): number {
+  if (volResult.recommendation === 'warning') return 0.15;  // Change this
+  if (volResult.recommendation === 'caution') return 0.08;  // Change this
+  return 0.03; // Baseline
+}
+```
+
+## Monitoring
+
+### Check Volatility Calculations
+
+```bash
+npm run test:vol
+```
+
+### View Database Stats
+
+```sql
+-- Count price snapshots
+SELECT asset_id, COUNT(*) as prices
+FROM price_snapshots
+GROUP BY asset_id;
+
+-- Check latest prices
+SELECT * FROM price_snapshots
+ORDER BY timestamp DESC
+LIMIT 10;
+
+-- View cached volatility
+SELECT * FROM volatility_cache
+WHERE expires_at > NOW();
+```
+
+## Error Handling
+
+The oracle includes graceful fallbacks:
+
+```typescript
+try {
+  const pricing = await oracle.calculatePricing(params);
+} catch (error) {
+  if (error.message.includes('Insufficient data')) {
+    // Not enough price data - need more historical samples
+    console.log('Need at least 30 data points');
+  }
+  
+  // Oracle will fall back to TradFi-only if on-chain data unavailable
+}
+```
+
+## Performance Optimization
+
+<AccordionGroup>
+  <Accordion title="Use Volatility Cache">
+    Results are cached for 5-15 minutes. Repeated queries return instantly.
+  </Accordion>
+
+  <Accordion title="Database Indexes">
+    The schema includes optimized indexes for fast queries:
+    - `(asset_id, timestamp DESC)` for price fetching
+    - `(asset_id, lookback_days, source)` for cache lookups
+  </Accordion>
+
+  <Accordion title="Batch Price Inserts">
+    When backfilling, use batch inserts (100 at a time) for better performance.
+  </Accordion>
+</AccordionGroup>
+
+## Production Checklist
+
+<Steps>
+  <Step title="Database Setup">
+    - Upgrade to Supabase Pro ($25/month)
+    - Enable connection pooling
+    - Set up automated backups
+  </Step>
+  
+  <Step title="Price Sampling">
+    - Deploy sampling service (PM2/systemd)
+    - Monitor for gaps in data
+    - Set up alerts for sampling failures
+  </Step>
+  
+  <Step title="Monitoring">
+    - Track divergence metrics
+    - Alert on high divergence (>25%)
+    - Monitor oracle response times
+  </Step>
+  
+  <Step title="Testing">
+    - Validate with historical data
+    - Compare post-expiry actual vs predicted
+    - Load test with multiple assets
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/oracle/api-reference">
+    Complete API documentation
+  </Card>
+  <Card title="Pricing Math" icon="calculator" href="/oracle/pricing">
+    Understand the calculations
+  </Card>
+</CardGroup>

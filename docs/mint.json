@@ -53,6 +53,14 @@
             ]
         },
         {
+            "group": "Oracle",
+            "pages": [
+                "oracle/overview",
+                "oracle/integration",
+                "oracle/api-reference"
+            ]
+        },
+        {
             "group": "Guides",
             "pages": [
                 "guides/creating-rfqs",

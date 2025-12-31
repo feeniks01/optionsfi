@@ -1,0 +1,364 @@
+---
+title: 'API Reference'
+description: 'Complete API documentation for the oracle package'
+---
+
+## Core Classes
+
+### PriceDatabase
+
+Manages price data storage and retrieval.
+
+<ParamField path="constructor" type="(config: OracleConfig) => PriceDatabase">
+  Creates a new database client
+  
+  **Parameters:**
+  - `config.supabaseUrl` - Your Supabase project URL
+  - `config.supabaseKey` - Your Supabase anon key
+  - `config.solanaRpcUrl` - Solana RPC endpoint
+</ParamField>
+
+#### Methods
+
+<ResponseField name="storePriceSnapshot" type="Promise<void>">
+  ```typescript
+  async storePriceSnapshot(
+    assetId: string,
+    price: number,
+    timestamp: number,
+    source: 'pyth' | 'dex' | 'yahoo',
+    confidence?: number
+  ): Promise<void>
+  ```
+  
+  Stores a single price snapshot.
+</ResponseField>
+
+<ResponseField name="getPriceSnapshots" type="Promise<PricePoint[]>">
+  ```typescript
+  async getPriceSnapshots(
+    assetId: string,
+    startTimestamp: number,
+    endTimestamp: number,
+    source?: 'pyth' | 'dex' | 'yahoo'
+  ): Promise<PricePoint[]>
+  ```
+  
+  Retrieves price snapshots for a time range.
+</ResponseField>
+
+<ResponseField name="getLatestPrice" type="Promise<PricePoint | null>">
+  ```typescript
+  async getLatestPrice(
+    assetId: string,
+    source?: 'pyth' | 'dex' | 'yahoo'
+  ): Promise<PricePoint | null>
+  ```
+  
+  Gets the most recent price for an asset.
+</ResponseField>
+
+---
+
+### OnChainVolatilityTracker
+
+Calculates realized volatility from on-chain price data.
+
+<ParamField path="constructor" type="(db: PriceDatabase) => OnChainVolatilityTracker">
+  Creates a new volatility tracker
+</ParamField>
+
+#### Methods
+
+<ResponseField name="getVolatility" type="Promise<VolatilityResult>">
+  ```typescript
+  async getVolatility(params: OnChainVolatilityParams): Promise<VolatilityResult>
+  ```
+  
+  **Parameters:**
+  - `params.assetId` - Asset identifier (e.g., "NVDAX")
+  - `params.mintAddress` - Solana mint address
+  - `params.lookbackDays` - Number of days to look back (default: 30)
+  
+  **Returns:**
+  ```typescript
+  {
+    volatility: number;        // Annualized volatility (e.g., 0.397)
+    dataPoints: number;        // Number of prices used
+    startTimestamp: number;    // Lookback start time
+    endTimestamp: number;      // Current time
+    source: string;            // Data source
+    confidence: number;        // Confidence score 0-1
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="getVolatilityTermStructure" type="Promise<Array>">
+  ```typescript
+  async getVolatilityTermStructure(
+    assetId: string,
+    mintAddress: string,
+    periods?: number[]
+  ): Promise<Array<{ days: number; volatility: number; confidence: number }>>
+  ```
+  
+  Calculates volatility across multiple time horizons.
+  
+  **Default periods:** [7, 14, 30, 60, 90] days
+</ResponseField>
+
+---
+
+### HybridVolatilityEngine
+
+Blends on-chain and TradFi volatility data.
+
+<ParamField path="constructor" type="(db: PriceDatabase) => HybridVolatilityEngine">
+  Creates a new hybrid engine
+</ParamField>
+
+#### Methods
+
+<ResponseField name="calculateHybridVolatility" type="Promise<HybridVolatilityResult>">
+  ```typescript
+  async calculateHybridVolatility(
+    params: HybridVolatilityParams
+  ): Promise<HybridVolatilityResult>
+  ```
+  
+  **Parameters:**
+  - `params.assetId` - Asset identifier
+  - `params.tradFiTicker` - Yahoo Finance ticker (e.g., "NVDA")
+  - `params.onChainMint` - Solana mint address
+  - `params.lookbackDays` - Lookback period (default: 30)
+  
+  **Returns:**
+  ```typescript
+  {
+    finalVolatility: number;     // Blended volatility
+    tradFiVol: number;           // TradFi volatility
+    onChainVol: number;          // On-chain volatility
+    weight: number;              // Weight given to on-chain (0-0.7)
+    divergence: number;          // Absolute difference / TradFi
+    recommendation: 'safe' | 'caution' | 'warning'
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="getVolatilityComparison" type="Promise<object>">
+  ```typescript
+  async getVolatilityComparison(
+    assetId: string,
+    tradFiTicker: string,
+    onChainMint: string,
+    lookbackDays: number
+  ): Promise<{
+    onChain: number;
+    tradFi: number;
+    difference: number;
+    percentDifference: number;
+  }>
+  ```
+  
+  Direct comparison of on-chain vs TradFi volatility.
+</ResponseField>
+
+---
+
+### PricingOracle
+
+Provides risk-adjusted option pricing.
+
+<ParamField path="constructor" type="(hybridEngine: HybridVolatilityEngine) => PricingOracle">
+  Creates a new pricing oracle
+</ParamField>
+
+#### Methods
+
+<ResponseField name="calculatePricing" type="Promise<PricingOracleResult>">
+  ```typescript
+  async calculatePricing(
+    params: PricingOracleParams
+  ): Promise<PricingOracleResult>
+  ```
+  
+  **Parameters:**
+  - `params.assetId` - Asset identifier
+  - `params.spot` - Current spot price
+  - `params.strike` - Strike price
+  - `params.daysToExpiry` - Days until expiration
+  - `params.optionType` - 'call' or 'put'
+  
+  **Returns:**
+  ```typescript
+  {
+    fairValue: number;           // Black-Scholes fair value
+    minPremium: number;          // Minimum acceptable premium
+    maxPremium: number;          // Maximum reasonable premium
+    volatilityUsed: number;      // Final volatility input
+    riskAdjustment: number;      // Risk buffer applied (0.03-0.15)
+    metadata: {
+      tradFiVol: number;
+      onChainVol: number;
+      divergence: number;
+      recommendation: string;
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="calculateGreeks" type="object">
+  ```typescript
+  calculateGreeks(params: {
+    spot: number;
+    strike: number;
+    timeToExpiry: number;
+    volatility: number;
+    riskFreeRate: number;
+    optionType: 'call' | 'put';
+  }): {
+    delta: number;
+    gamma: number;
+    theta: number;
+    vega: number;
+    rho: number;
+  }
+  ```
+  
+  Calculates option Greeks.
+</ResponseField>
+
+---
+
+### PriceSamplerService
+
+Continuous price sampling service.
+
+<ParamField path="constructor" type="(config: OracleConfig) => PriceSamplerService">
+  Creates a new sampler service
+</ParamField>
+
+#### Methods
+
+<ResponseField name="startSampling" type="Promise<void>">
+  ```typescript
+  async startSampling(config: AssetSamplingConfig): Promise<void>
+  ```
+  
+  **Parameters:**
+  - `config.assetId` - Asset identifier
+  - `config.pythFeedAddress` - Optional Pyth price feed address
+  - `config.yahooTicker` - Optional Yahoo Finance ticker
+  - `config.intervalSeconds` - Sampling interval (e.g., 300 for 5 minutes)
+  
+  Starts continuous price sampling for an asset.
+</ResponseField>
+
+<ResponseField name="stopSampling" type="void">
+  ```typescript
+  stopSampling(assetId: string): void
+  ```
+  
+  Stops sampling for an asset.
+</ResponseField>
+
+<ResponseField name="backfillHistoricalPrices" type="Promise<void>">
+  ```typescript
+  async backfillHistoricalPrices(
+    assetId: string,
+    yahooTicker: string,
+    daysBack: number
+  ): Promise<void>
+  ```
+  
+  Backfills historical prices from Yahoo Finance.
+</ResponseField>
+
+---
+
+## Type Definitions
+
+### PricePoint
+
+```typescript
+interface PricePoint {
+  price: number;
+  timestamp: number;
+  source: 'pyth' | 'dex' | 'yahoo';
+  confidence?: number;
+}
+```
+
+### VolatilityResult
+
+```typescript
+interface VolatilityResult {
+  volatility: number;
+  dataPoints: number;
+  startTimestamp: number;
+  endTimestamp: number;
+  source: 'pyth' | 'dex' | 'yahoo' | 'hybrid';
+  confidence: number;
+}
+```
+
+### HybridVolatilityResult
+
+```typescript
+interface HybridVolatilityResult {
+  finalVolatility: number;
+  tradFiVol: number;
+  onChainVol: number;
+  weight: number;
+  divergence: number;
+  recommendation: 'safe' | 'caution' | 'warning';
+}
+```
+
+### PricingOracleResult
+
+```typescript
+interface PricingOracleResult {
+  fairValue: number;
+  minPremium: number;
+  maxPremium: number;
+  volatilityUsed: number;
+  riskAdjustment: number;
+  metadata: {
+    tradFiVol: number;
+    onChainVol: number;
+    divergence: number;
+    recommendation: string;
+  };
+}
+```
+
+---
+
+## Error Handling
+
+### Common Errors
+
+<ResponseField name="Insufficient data">
+  Thrown when there are fewer than 2 price points available.
+  
+  **Solution:** Backfill more historical data or wait for sampling to collect data.
+</ResponseField>
+
+<ResponseField name="Database connection failed">
+  Supabase connection or authentication issue.
+  
+  **Solution:** Check `SUPABASE_URL` and `SUPABASE_KEY` environment variables.
+</ResponseField>
+
+<ResponseField name="Failed to fetch volatility">
+  External API (Yahoo Finance) failure.
+  
+  **Solution:** The system automatically falls back to cached values or defaults.
+</ResponseField>
+
+---
+
+## Examples
+
+See the [Integration Guide](/oracle/integration) for complete examples.
