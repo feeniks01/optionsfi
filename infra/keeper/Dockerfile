@@ -2,11 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files (context is infra/keeper/)
+# Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install
+# Clean npm cache and install dependencies
+RUN npm cache clean --force && npm install --legacy-peer-deps
 
 # Copy source files
 COPY src/ ./src/
