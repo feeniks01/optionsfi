@@ -2,19 +2,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy entire keeper directory first, then move files to correct location
-COPY infra/keeper/ /tmp/keeper/
+# Copy package files (context is infra/keeper/)
+COPY package.json package-lock.json ./
 
-# Move package files and install
-RUN cp /tmp/keeper/package.json /tmp/keeper/package-lock.json ./ && npm ci
+# Install dependencies
+RUN npm ci
 
-# Copy source, IDL, and config
-RUN cp -r /tmp/keeper/src ./src && \
-    cp -r /tmp/keeper/idl ./idl && \
-    cp /tmp/keeper/tsconfig.json ./tsconfig.json
-
-# Clean up temp
-RUN rm -rf /tmp/keeper
+# Copy source files
+COPY src/ ./src/
+COPY idl/ ./idl/
+COPY tsconfig.json ./
 
 # Build TypeScript
 RUN npm run build
