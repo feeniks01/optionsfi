@@ -2,14 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from infra/rfq-router
+COPY infra/rfq-router/package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy source
-COPY . .
+# Copy source from infra/rfq-router
+COPY infra/rfq-router/ .
 
 # Start mock market maker
 CMD ["node", "mock-mm.js"]
