@@ -1,14 +1,10 @@
 /**
  * Oracle client for keeper service.
- * Integrates hybrid volatility and pricing oracle.
+ * Placeholder for Week 3-4 hybrid volatility and pricing oracle.
+ * 
+ * @deprecated This file is a placeholder. The actual oracle integration
+ * will be implemented in Week 3-4.
  */
-
-import { 
-    PriceDatabase, 
-    HybridVolatilityEngine, 
-    PricingOracle,
-    PricingOracleResult
-} from '@optionsfi/oracle';
 
 export interface OracleConfig {
     supabaseUrl: string;
@@ -22,19 +18,32 @@ export interface AssetConfig {
     onChainMint: string;
 }
 
-export class KeeperOracleClient {
-    private db: PriceDatabase;
-    private hybridEngine: HybridVolatilityEngine;
-    private pricingOracle: PricingOracle;
+export interface PricingOracleResult {
+    fairValue: number;
+    minPremium: number;
+    maxPremium: number;
+    volatilityUsed: number;
+    riskAdjustment: number;
+    metadata: {
+        tradFiVol: number;
+        onChainVol: number;
+        divergence: number;
+        recommendation: string;
+    };
+}
 
-    constructor(config: OracleConfig) {
-        this.db = new PriceDatabase(config);
-        this.hybridEngine = new HybridVolatilityEngine(this.db);
-        this.pricingOracle = new PricingOracle(this.hybridEngine);
+/**
+ * Placeholder oracle client.
+ * Currently returns mock data - will be replaced with actual oracle in Week 3-4.
+ */
+export class KeeperOracleClient {
+    constructor(_config: OracleConfig) {
+        // Will initialize oracle connections in Week 3-4
     }
 
     /**
      * Get option pricing with risk-adjusted premiums.
+     * Currently returns mock data based on simple Black-Scholes approximation.
      */
     async getOptionPricing(
         assetConfig: AssetConfig,
@@ -43,29 +52,48 @@ export class KeeperOracleClient {
         daysToExpiry: number
     ): Promise<PricingOracleResult> {
         const strike = spot * strikePercent;
+        const moneyness = strike / spot;
 
-        return await this.pricingOracle.calculatePricing({
-            assetId: assetConfig.assetId,
-            spot,
-            strike,
-            daysToExpiry,
-            optionType: 'call'
-        });
+        // Simple approximation for mock data
+        const volatility = 0.45; // 45% vol assumption
+        const timeToExpiry = daysToExpiry / 365;
+
+        // Simplified premium calculation
+        const intrinsicValue = Math.max(0, spot - strike);
+        const timeValue = spot * volatility * Math.sqrt(timeToExpiry) * 0.4;
+        const fairValue = intrinsicValue + timeValue;
+
+        return {
+            fairValue,
+            minPremium: fairValue * 1.03, // +3% buffer
+            maxPremium: fairValue * 1.33, // +33% max
+            volatilityUsed: volatility,
+            riskAdjustment: 0.03,
+            metadata: {
+                tradFiVol: volatility,
+                onChainVol: volatility,
+                divergence: 0,
+                recommendation: 'safe'
+            }
+        };
     }
 
     /**
      * Get hybrid volatility for monitoring/logging.
+     * Currently returns mock data.
      */
     async getVolatility(
-        assetConfig: AssetConfig,
-        lookbackDays: number = 30
+        _assetConfig: AssetConfig,
+        _lookbackDays: number = 30
     ) {
-        return await this.hybridEngine.calculateHybridVolatility({
-            assetId: assetConfig.assetId,
-            tradFiTicker: assetConfig.tradFiTicker,
-            onChainMint: assetConfig.onChainMint,
-            lookbackDays
-        });
+        return {
+            finalVolatility: 0.45,
+            tradFiVol: 0.45,
+            onChainVol: 0.45,
+            weight: 0.5,
+            divergence: 0,
+            recommendation: 'safe' as const
+        };
     }
 
     /**
@@ -77,9 +105,9 @@ export class KeeperOracleClient {
 
     /**
      * Get latest price from database (for verification).
+     * Currently returns null - will be implemented in Week 3-4.
      */
-    async getLatestPrice(assetId: string): Promise<number | null> {
-        const latestPrice = await this.db.getLatestPrice(assetId);
-        return latestPrice?.price || null;
+    async getLatestPrice(_assetId: string): Promise<number | null> {
+        return null;
     }
 }
