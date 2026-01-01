@@ -61,10 +61,7 @@ enum Message {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    // Use Builder to write to stdout (Railway classifies stderr as "error")
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .target(env_logger::Target::Stdout)
-        .init();
+    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     info!("🚀 Starting Rust Market Maker...");
 
