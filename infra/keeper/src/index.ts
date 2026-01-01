@@ -514,7 +514,8 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         try {
             const rfqResponse = await axios.post(`${config.rfqRouterUrl}/rfq`, {
                 underlying: assetId,
-                optionType: "CALL",
+                side: "sell", // Vault is selling covered calls
+                optionType: "call", // lowercase required by router
                 strike: strikePrice,
                 expiry: Math.floor(Date.now() / 1000) + Number(vaultData.minEpochDuration),
                 size: notionalTokens,
