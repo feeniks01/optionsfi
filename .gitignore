@@ -34,3 +34,11 @@ scripts/fix-vault-shortfall.ts
 scripts/migrate-vault.ts
 scripts/node_modules/
 scripts/package-lock.json
+
+# Texts
+PRD/
+
+# MD
+*.md
+!README.md
+!README_V2.md
