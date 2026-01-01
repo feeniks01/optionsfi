@@ -28,6 +28,14 @@ export default function AppWalletProvider({
         [network]
     );
 
+    const onError = useMemo(
+        () => (error: Error) => {
+            console.warn('Wallet connection error:', error.message);
+            // Don't throw - let the UI handle disconnected state gracefully
+        },
+        []
+    );
+
     return (
         <ConnectionProvider
             endpoint={endpoint}
@@ -35,7 +43,7 @@ export default function AppWalletProvider({
                 wsEndpoint: process.env.NEXT_PUBLIC_WSS_URL
             }}
         >
-            <WalletProvider wallets={wallets} autoConnect>
+            <WalletProvider wallets={wallets} autoConnect onError={onError}>
                 <WalletModalProvider>{children}</WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>
