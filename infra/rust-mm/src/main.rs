@@ -61,7 +61,11 @@ enum Message {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+    // Use stdout with line buffering for Railway log level detection
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .target(env_logger::Target::Stdout)
+        .format_timestamp_millis()
+        .init();
 
     info!("🚀 Starting Rust Market Maker...");
 

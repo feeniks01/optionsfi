@@ -23,5 +23,9 @@ RUN apt-get update && apt-get install -y ca-certificates openssl && rm -rf /var/
 
 COPY --from=builder /app/target/release/rust-mm /usr/local/bin/rust-mm
 
+# Disable stdout buffering for logs to appear immediately
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=info
+
 # Default Command
 CMD ["rust-mm"]
