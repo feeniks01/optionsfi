@@ -20,21 +20,6 @@ export interface VaultMetadata {
 }
 
 export const VAULT_CONFIG: Record<string, VaultMetadata> = {
-    // Demo vault with virtual offset (first depositor protection - no token loss)
-    demonvdax: {
-        name: "Demo NVDAx",
-        symbol: "NVDAx",
-        assetId: "DemoV3",  // Uses mock USDC (5z8s3k...) for premium
-        strategy: "Demo Vault",
-        logo: "/nvidiax_logo.png",
-        accentColor: "#76B900",
-        strikeOffset: 0.01,
-        premiumRange: [0.8, 1.2],
-        isDemo: true,
-        decimals: 6,
-        pythFeedId: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
-    },
-
     // Production vaults
     nvdax: {
         name: "NVDAx Vault",
@@ -49,6 +34,7 @@ export const VAULT_CONFIG: Record<string, VaultMetadata> = {
         decimals: 6,
         pythFeedId: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
     },
+    // demonvdax disabled: hide demo vault from all UI surfaces
 };
 
 // Helper to get vault by ticker (lowercase key)

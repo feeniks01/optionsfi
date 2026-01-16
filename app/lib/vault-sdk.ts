@@ -38,11 +38,7 @@ export const VAULTS: Record<string, VaultConfig> = {
         assetId: "NVDAx",
         underlyingMint: NVDAX_MINT,
     },
-    demonvdax: {
-        symbol: "DemoNVDAx",
-        assetId: "DemoV3",  // Uses mock USDC for premium
-        underlyingMint: NVDAX_MINT,
-    },
+    // demonvdax disabled: hide demo vault from all UI surfaces
 };
 
 export interface VaultData {
