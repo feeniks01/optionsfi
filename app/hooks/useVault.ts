@@ -477,8 +477,6 @@ export function useAllVaults() {
                 localStorage.setItem(listCacheKey, JSON.stringify({ timestamp: now, ids: assetIds }));
             }
 
-            setVaultIds(assetIds);
-
             await Promise.all(assetIds.map(async (assetId) => {
                 try {
                     const data = await fetchVaultData(connection, assetId);
@@ -506,6 +504,12 @@ export function useAllVaults() {
                     balanceResults[assetId] = 0;
                 }
             }));
+
+            const activeAssetIds = assetIds.filter(id => vaultResults[id]);
+            if (activeAssetIds.length !== assetIds.length) {
+                localStorage.setItem(listCacheKey, JSON.stringify({ timestamp: now, ids: activeAssetIds }));
+            }
+            setVaultIds(activeAssetIds);
 
             // Only update state if data actually changed (prevents visual flicker)
             const newHash = JSON.stringify({ vaultResults, balanceResults });
