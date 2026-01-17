@@ -100,6 +100,32 @@ export class VaultInstructions {
         return this.program !== null;
     }
 
+    private mapVaultAccount(vault: any): VaultData {
+        return {
+            authority: vault.authority as PublicKey,
+            assetId: vault.assetId as string,
+            underlyingMint: vault.underlyingMint as PublicKey,
+            shareMint: vault.shareMint as PublicKey,
+            vaultTokenAccount: vault.vaultTokenAccount as PublicKey,
+            premiumMint: vault.premiumMint as PublicKey,
+            premiumTokenAccount: vault.premiumTokenAccount as PublicKey,
+            shareEscrow: vault.shareEscrow as PublicKey,
+            totalAssets: BigInt((vault.totalAssets as anchor.BN).toString()),
+            totalShares: BigInt((vault.totalShares as anchor.BN).toString()),
+            virtualOffset: BigInt((vault.virtualOffset as anchor.BN).toString()),
+            epoch: BigInt((vault.epoch as anchor.BN).toString()),
+            utilizationCapBps: vault.utilizationCapBps as number,
+            minEpochDuration: BigInt((vault.minEpochDuration as anchor.BN).toString()),
+            lastRollTimestamp: BigInt((vault.lastRollTimestamp as anchor.BN).toString()),
+            pendingWithdrawals: BigInt((vault.pendingWithdrawals as anchor.BN).toString()),
+            epochNotionalExposed: BigInt((vault.epochNotionalExposed as anchor.BN).toString()),
+            epochPremiumEarned: BigInt((vault.epochPremiumEarned as anchor.BN).toString()),
+            epochPremiumPerTokenBps: vault.epochPremiumPerTokenBps as number,
+            isPaused: vault.isPaused as boolean,
+            bump: vault.bump as number,
+        };
+    }
+
     /**
      * Fetch vault account data
      * 
@@ -115,35 +141,25 @@ export class VaultInstructions {
             const [vaultPda] = deriveVaultPda(assetId);
             const vault = await (this.program.account as any).vault.fetch(vaultPda);
 
-            return {
-                authority: vault.authority as PublicKey,
-                assetId: vault.assetId as string,
-                underlyingMint: vault.underlyingMint as PublicKey,
-                shareMint: vault.shareMint as PublicKey,
-                vaultTokenAccount: vault.vaultTokenAccount as PublicKey,
-                premiumMint: vault.premiumMint as PublicKey,
-                premiumTokenAccount: vault.premiumTokenAccount as PublicKey,
-                shareEscrow: vault.shareEscrow as PublicKey,
-                totalAssets: BigInt((vault.totalAssets as anchor.BN).toString()),
-                totalShares: BigInt((vault.totalShares as anchor.BN).toString()),
-                virtualOffset: BigInt((vault.virtualOffset as anchor.BN).toString()),
-                epoch: BigInt((vault.epoch as anchor.BN).toString()),
-                utilizationCapBps: vault.utilizationCapBps as number,
-                minEpochDuration: BigInt((vault.minEpochDuration as anchor.BN).toString()),
-                lastRollTimestamp: BigInt((vault.lastRollTimestamp as anchor.BN).toString()),
-                pendingWithdrawals: BigInt((vault.pendingWithdrawals as anchor.BN).toString()),
-                epochNotionalExposed: BigInt((vault.epochNotionalExposed as anchor.BN).toString()),
-                epochPremiumEarned: BigInt((vault.epochPremiumEarned as anchor.BN).toString()),
-                epochPremiumPerTokenBps: vault.epochPremiumPerTokenBps as number,
-                isPaused: vault.isPaused as boolean,
-                bump: vault.bump as number,
-            };
+            return this.mapVaultAccount(vault);
         } catch (error: any) {
             if (error.message?.includes('Account does not exist')) {
                 return null;
             }
             throw error;
         }
+    }
+
+    /**
+     * List all vaults on-chain
+     */
+    async listVaults(): Promise<VaultData[]> {
+        if (!this.program) {
+            throw new Error('Client not initialized. Call initialize() first.');
+        }
+
+        const accounts = await (this.program.account as any).vault.all();
+        return accounts.map((entry: any) => this.mapVaultAccount(entry.account));
     }
 
     /**

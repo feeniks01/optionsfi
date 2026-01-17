@@ -35,7 +35,9 @@ export function calculateVaultTiming(vault: any, assetId: string): VaultTimingRe
 
     // 1. Valid on-chain data
     if (lastRoll > 0) {
-        epochEndTimestamp = lastRoll + minDuration;
+        const elapsed = Math.max(0, now - lastRoll);
+        const periodsElapsed = Math.floor(elapsed / minDuration);
+        epochEndTimestamp = lastRoll + (periodsElapsed + 1) * minDuration;
     }
     // 2. Fallback for Demo (15-minute alignments)
     else if (isDemo) {
@@ -51,6 +53,9 @@ export function calculateVaultTiming(vault: any, assetId: string): VaultTimingRe
         const nextMarkHour = Math.ceil((utcHours + (utcMinutes / 60)) / 6) * 6;
         const nextRollDate = new Date(date);
         nextRollDate.setUTCHours(nextMarkHour, 0, 0, 0);
+        if (nextRollDate.getTime() <= now) {
+            nextRollDate.setUTCHours(nextRollDate.getUTCHours() + 6);
+        }
         epochEndTimestamp = nextRollDate.getTime();
     }
 

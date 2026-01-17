@@ -15,6 +15,8 @@ import { CronJob } from "cron";
 import axios from "axios";
 import express, { Request, Response } from "express";
 import winston from "winston";
+import fs from "fs";
+import path from "path";
 
 import { OnChainClient, createWallet, deriveVaultPda, VaultData } from "./onchain";
 import {
@@ -52,12 +54,51 @@ if (IS_PRODUCTION) {
     }
 }
 
+type VaultConfigEntry = {
+    id: string;
+    assetId: string;
+    name: string;
+    symbol: string;
+    strategy: string;
+    logo: string;
+    accentColor: string;
+    strikeOffset: number;
+    premiumRange: [number, number];
+    isDemo: boolean;
+    decimals: number;
+    pythFeedId: string;
+    underlyingMint: string;
+    premiumMint: string;
+    oracleTicker?: string;
+    utilizationCapBps?: number;
+    minEpochDuration?: number;
+    enabled?: boolean;
+};
+
+function loadVaultConfigs(): VaultConfigEntry[] {
+    const defaultPath = path.resolve(__dirname, "../../..", "config", "vaults.json");
+    const configPath = process.env.VAULT_CONFIG_PATH || defaultPath;
+    try {
+        const raw = fs.readFileSync(configPath, "utf-8");
+        return JSON.parse(raw) as VaultConfigEntry[];
+    } catch (error) {
+        console.warn("Failed to load vault config, falling back to env ASSET_IDS only", { error });
+        return [];
+    }
+}
+
+const allVaultConfigs = loadVaultConfigs();
+const enabledVaultConfigs = allVaultConfigs.filter(v => v.enabled !== false);
+const vaultConfigMap = new Map(allVaultConfigs.map(v => [v.assetId, v]));
+
 const config = {
     rpcUrl: process.env.RPC_URL || "https://api.devnet.solana.com",
     walletPath: WALLET_PATH,
     walletPrivateKey: process.env.WALLET_PRIVATE_KEY, // Base58 encoded private key (optional)
     // Support multiple vaults via comma-separated ASSET_IDS
-    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "DemoV3,NVDAx").split(",").map(s => s.trim()),
+    assetIds: (process.env.ASSET_IDS || process.env.ASSET_ID || "").length > 0
+        ? (process.env.ASSET_IDS || process.env.ASSET_ID || "").split(",").map(s => s.trim())
+        : (enabledVaultConfigs.length > 0 ? enabledVaultConfigs.map(v => v.assetId) : ["NVDAx"]),
     ticker: process.env.TICKER || "NVDA", // Yahoo Finance ticker for volatility
     cronSchedule: process.env.CRON_SCHEDULE || "0 */6 * * *", // Every 6 hours
     epochDurationDays: parseInt(process.env.EPOCH_DURATION_DAYS || "7"),
@@ -76,11 +117,11 @@ const config = {
 
 // Pyth Hermes API for real-time prices
 const HERMES_URL = "https://hermes.pyth.network";
-const NVDA_PRICE_FEED_ID = "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f"; // NVDA/USD
+const DEFAULT_PRICE_FEED_ID = "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f"; // NVDA/USD
 
 function getFeedIdForAsset(assetId: string): string {
-    // For now, all vaults use NVDA as underlying
-    return NVDA_PRICE_FEED_ID;
+    const configEntry = vaultConfigMap.get(assetId);
+    return configEntry?.pythFeedId || DEFAULT_PRICE_FEED_ID;
 }
 
 // ============================================================================
@@ -278,6 +319,8 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
     logEvent("epoch_roll_triggered", { vault: assetId });
 
     try {
+        const vaultConfig = vaultConfigMap.get(assetId);
+        const isDemo = assetId.toLowerCase().includes("demo");
         // Step 1: Fetch real vault data
         logger.info("Step 1: Fetching vault data...", { assetId });
         const vaultData = state.onchainClient
@@ -291,6 +334,13 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         const totalAssets = Number(vaultData.totalAssets) / 1e6; // Assuming 6 decimals
         const totalShares = Number(vaultData.totalShares) / 1e6;
         const pendingWithdrawalShares = Number(vaultData.pendingWithdrawals) / 1e6;
+
+        const fallbackEpochSeconds = vaultConfig?.minEpochDuration
+            ? Number(vaultConfig.minEpochDuration)
+            : (isDemo ? 900 : config.epochDurationDays * 24 * 60 * 60);
+        const epochDurationSeconds = Number(vaultData.minEpochDuration || 0) > 0
+            ? Number(vaultData.minEpochDuration)
+            : fallbackEpochSeconds;
 
         // Calculate assets locked for withdrawal
         // lockedAssets = (pendingShares / totalShares) * totalAssets
@@ -342,9 +392,10 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         logger.info("Step 3: Calculating strike price...");
         const spotPrice = oraclePrice.price;
         // For demo vaults, use a tighter strike (1% OTM) to be more realistic for short durations
-        const strikeDelta = assetId.toLowerCase().includes("demo")
-            ? 0.01
-            : (config.strikeDeltaBps / 10000);
+        const strikeDeltaBps = vaultConfig?.strikeOffset
+            ? Math.round(vaultConfig.strikeOffset * 10000)
+            : config.strikeDeltaBps;
+        const strikeDelta = isDemo ? 0.01 : (strikeDeltaBps / 10000);
         const strikePrice = spotPrice * (1 + strikeDelta);
 
         logger.info("Strike calculated", {
@@ -370,16 +421,12 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
                 });
 
                 // Calculate days to expiry first
-                let durationSeconds = Number(vaultData.minEpochDuration);
-                if (durationSeconds === 0) {
-                    durationSeconds = assetId.toLowerCase().includes("demo") ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
-                }
-                daysToExpiry = durationSeconds / (24 * 60 * 60);
+                daysToExpiry = epochDurationSeconds / (24 * 60 * 60);
 
                 // Get hybrid volatility
                 const volResult = await oracle.getVolatility({
                     assetId: assetId,
-                    tradFiTicker: config.ticker,
+                    tradFiTicker: vaultConfig?.oracleTicker || config.ticker,
                     onChainMint: vaultData.underlyingMint.toString()
                 }, config.volatilityLookbackDays);
 
@@ -398,7 +445,7 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
                 oraclePricing = await oracle.getOptionPricing(
                     {
                         assetId: assetId,
-                        tradFiTicker: config.ticker,
+                        tradFiTicker: vaultConfig?.oracleTicker || config.ticker,
                         onChainMint: vaultData.underlyingMint.toString()
                     },
                     spotPrice,
@@ -434,9 +481,9 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         if (!useOracleMinPremium) {
             logger.info("Using legacy Yahoo Finance volatility");
             try {
-                volatility = await getVolatility(config.ticker, config.volatilityLookbackDays);
+                volatility = await getVolatility(vaultConfig?.oracleTicker || config.ticker, config.volatilityLookbackDays);
                 logger.info("Historical volatility fetched", {
-                    ticker: config.ticker,
+                    ticker: vaultConfig?.oracleTicker || config.ticker,
                     volatility: `${(volatility * 100).toFixed(1)}%`,
                     lookbackDays: config.volatilityLookbackDays,
                 });
@@ -463,18 +510,10 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
             });
         } else {
             // Legacy Black-Scholes calculation
-            let durationSeconds = Number(vaultData.minEpochDuration);
-            if (durationSeconds === 0) {
-                if (assetId.toLowerCase().includes("demo")) {
-                    logger.warn("Duration is 0, using fallback 900s for Demo vault");
-                    durationSeconds = 900;
-                } else {
-                    logger.warn("Duration is 0, using fallback 7 days for Production vault");
-                    durationSeconds = 7 * 24 * 60 * 60;
-                }
+            if (Number(vaultData.minEpochDuration || 0) === 0) {
+                logger.warn("Duration is 0, using fallback duration", { assetId, fallbackSeconds: fallbackEpochSeconds });
             }
-
-            daysToExpiry = durationSeconds / (24 * 60 * 60);
+            daysToExpiry = epochDurationSeconds / (24 * 60 * 60);
             premiumPerToken = calculateCoveredCallPremium({
                 spot: spotPrice,
                 strikePercent: strikePrice / spotPrice,
@@ -495,7 +534,6 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
         // Step 6: Calculate notional to expose
         // Demo vaults: use full available capacity for quick demos
         // Production vaults: max 50% per roll for gradual ramp-up
-        const isDemo = assetId.toLowerCase().includes("demo");
         const notionalTokens = isDemo
             ? availableExposure
             : Math.min(availableExposure, totalAssets * 0.5);
@@ -517,7 +555,7 @@ async function runEpochRollForVault(assetId: string, preFetchedPrice?: OraclePri
                 side: "sell", // Vault is selling covered calls
                 optionType: "call", // lowercase required by router
                 strike: strikePrice,
-                expiry: Math.floor(Date.now() / 1000) + Number(vaultData.minEpochDuration),
+                expiry: Math.floor(Date.now() / 1000) + epochDurationSeconds,
                 size: notionalTokens,
                 premiumFloor: Math.max(1, Math.floor(totalPremium * 0.8 * 1e6)), // 80% of BS price minimum in USDC base units
             }, { timeout: 15000 });

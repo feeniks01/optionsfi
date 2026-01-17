@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-
-// Pyth Feed IDs for xStocks
-const PYTH_FEEDS: Record<string, string> = {
-    NVDAx: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
-    TSLAx: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
-    SPYx: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
-    AAPLx: "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
-    METAx: "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
-};
+import { getAllVaultConfigs, getVaultConfig } from "../lib/vault-config";
 
 const HERMES_URL = "https://hermes.pyth.network";
 
@@ -39,7 +31,9 @@ export function usePythPrices(): UsePythPricesReturn {
 
     const fetchPrices = useCallback(async () => {
         try {
-            const feedIds = Object.values(PYTH_FEEDS);
+            const configs = getAllVaultConfigs();
+            const feedIds = configs.map(c => c.pythFeedId).filter(Boolean);
+            if (feedIds.length === 0) return;
             const idsParam = feedIds.map(id => `ids[]=${id}`).join("&");
 
             const response = await fetch(
@@ -55,10 +49,9 @@ export function usePythPrices(): UsePythPricesReturn {
             if (data.parsed) {
                 const newPrices: Record<string, PythPriceData> = {};
 
-                Object.entries(PYTH_FEEDS).forEach(([symbol, feedId]) => {
-                    const feedData = data.parsed.find(
-                        (p: any) => `0x${p.id}` === feedId
-                    );
+                configs.forEach((config) => {
+                    const feedId = config.pythFeedId;
+                    const feedData = data.parsed.find((p: any) => `0x${p.id}` === feedId);
 
                     if (feedData) {
                         const price = parseFloat(feedData.price.price) * Math.pow(10, feedData.price.expo);
@@ -66,8 +59,8 @@ export function usePythPrices(): UsePythPricesReturn {
                         const emaPrice = parseFloat(feedData.ema_price.price) * Math.pow(10, feedData.ema_price.expo);
                         const publishTime = feedData.price.publish_time;
 
-                        newPrices[symbol.toLowerCase()] = {
-                            symbol,
+                        newPrices[config.assetId.toLowerCase()] = {
+                            symbol: config.symbol,
                             price,
                             confidence: conf,
                             lastUpdated: new Date(publishTime * 1000),
@@ -96,9 +89,10 @@ export function usePythPrices(): UsePythPricesReturn {
     }, [fetchPrices]);
 
     // Helper to get price by symbol (case insensitive)
-    const getPrice = useCallback((symbol: string): number => {
-        const normalized = symbol.toLowerCase().replace(/x$/, "x");
-        return prices[normalized]?.price || 0;
+    const getPrice = useCallback((symbolOrAssetId: string): number => {
+        const config = getVaultConfig(symbolOrAssetId);
+        const key = config?.assetId.toLowerCase() || symbolOrAssetId.toLowerCase();
+        return prices[key]?.price || 0;
     }, [prices]);
 
     return {

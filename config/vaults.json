@@ -1,0 +1,51 @@
+[
+  {
+    "id": "nvdax",
+    "assetId": "NVDAx",
+    "name": "NVDAx Vault",
+    "symbol": "NVDAx",
+    "strategy": "Covered Call",
+    "logo": "/nvidiax_logo.png",
+    "accentColor": "#76B900",
+    "strikeOffset": 0.1,
+    "premiumRange": [0.8, 1.2],
+    "isDemo": false,
+    "decimals": 6,
+    "pythFeedId": "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    "underlyingMint": "G5VWnnWRxVvuTqRCEQNNGEdRmS42hMTyh8DAN9MHecLn",
+    "premiumMint": "5z8s3k7mkmH1DKFPvjkVd8PxapEeYaPJjqQTJeUEN1i4",
+    "oracleTicker": "NVDA",
+    "utilizationCapBps": 8000,
+    "minEpochDuration": 604800,
+    "shareMetadata": {
+      "name": "vNVDAx",
+      "symbol": "vNVDAx",
+      "uri": "https://raw.githubusercontent.com/feeniks01/optionsfi/main/app/public/metadata/vnvdax.json"
+    }
+  },
+  {
+    "id": "demonvdax",
+    "assetId": "DemoV3",
+    "name": "Demo NVDAx",
+    "symbol": "NVDAx",
+    "strategy": "Demo Vault",
+    "logo": "/nvidiax_logo.png",
+    "accentColor": "#76B900",
+    "strikeOffset": 0.01,
+    "premiumRange": [0.8, 1.2],
+    "isDemo": true,
+    "decimals": 6,
+    "pythFeedId": "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    "underlyingMint": "G5VWnnWRxVvuTqRCEQNNGEdRmS42hMTyh8DAN9MHecLn",
+    "premiumMint": "5z8s3k7mkmH1DKFPvjkVd8PxapEeYaPJjqQTJeUEN1i4",
+    "oracleTicker": "NVDA",
+    "utilizationCapBps": 8000,
+    "minEpochDuration": 900,
+    "enabled": false,
+    "shareMetadata": {
+      "name": "vDemoNVDAx",
+      "symbol": "vNVDAx",
+      "uri": "https://raw.githubusercontent.com/feeniks01/optionsfi/main/app/public/metadata/vnvdax.json"
+    }
+  }
+]

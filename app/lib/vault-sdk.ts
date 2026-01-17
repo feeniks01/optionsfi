@@ -1,5 +1,5 @@
 
-import { Connection, PublicKey, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, SystemProgram } from "@solana/web3.js";
 import { Program, AnchorProvider, Wallet, BN } from "@coral-xyz/anchor";
 import {
     TOKEN_PROGRAM_ID,
@@ -22,24 +22,17 @@ export const RFQ_PROGRAM_ID = new PublicKey(
     "3M2K6htNbWyZHtvvUyUME19f5GUS6x8AtGmitFENDT5Z"
 );
 
-// Vault configuration for each xStock
-export interface VaultConfig {
-    symbol: string;
-    assetId: string;  // Used for PDA derivation
-    underlyingMint: PublicKey;
+export interface VaultAccountInfo {
+    assetId: string;
+    publicKey: string;
+    authority: string;
+    underlyingMint: string;
+    shareMint: string;
+    vaultTokenAccount: string;
+    premiumMint: string;
+    premiumTokenAccount: string;
+    shareEscrow: string;
 }
-
-// NVDAx token mint (the actual token users deposit)
-const NVDAX_MINT = new PublicKey("G5VWnnWRxVvuTqRCEQNNGEdRmS42hMTyh8DAN9MHecLn");
-
-export const VAULTS: Record<string, VaultConfig> = {
-    nvdax: {
-        symbol: "NVDAx",
-        assetId: "NVDAx",
-        underlyingMint: NVDAX_MINT,
-    },
-    // demonvdax disabled: hide demo vault from all UI surfaces
-};
 
 export interface VaultData {
     publicKey: string;
@@ -126,6 +119,35 @@ export function deriveShareEscrowPda(vaultPda: PublicKey): [PublicKey, number] {
  */
 export function getVaultProgram(provider: AnchorProvider): any {
     return new Program(vaultIdl as any, provider);
+}
+
+function getReadOnlyProgram(connection: Connection): Program {
+    const dummyWallet = {
+        publicKey: PublicKey.default,
+        signTransaction: async () => { throw new Error("Not implemented"); },
+        signAllTransactions: async () => { throw new Error("Not implemented"); },
+    } as unknown as Wallet;
+    const provider = new AnchorProvider(connection, dummyWallet, { commitment: "confirmed" });
+    return getVaultProgram(provider);
+}
+
+export async function fetchAllVaultAccounts(connection: Connection): Promise<VaultAccountInfo[]> {
+    const program = getReadOnlyProgram(connection);
+    const accounts = await (program.account as any).vault.all();
+    return accounts.map((entry: any) => {
+        const vault = entry.account;
+        return {
+            assetId: vault.assetId as string,
+            publicKey: entry.publicKey.toBase58(),
+            authority: (vault.authority as PublicKey).toBase58(),
+            underlyingMint: (vault.underlyingMint as PublicKey).toBase58(),
+            shareMint: (vault.shareMint as PublicKey).toBase58(),
+            vaultTokenAccount: (vault.vaultTokenAccount as PublicKey).toBase58(),
+            premiumMint: (vault.premiumMint as PublicKey).toBase58(),
+            premiumTokenAccount: (vault.premiumTokenAccount as PublicKey).toBase58(),
+            shareEscrow: (vault.shareEscrow as PublicKey).toBase58(),
+        };
+    });
 }
 
 /**
@@ -248,9 +270,6 @@ export async function buildDepositTransaction(
     const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
     const program = getVaultProgram(provider);
 
-    const config = Object.values(VAULTS).find(v => v.assetId === assetId);
-    if (!config) throw new Error(`Unknown vault: ${assetId}`);
-
     const [vaultPda] = deriveVaultPda(assetId);
 
     // Fetch the vault account to get the ACTUAL share mint and vault token account
@@ -258,10 +277,11 @@ export async function buildDepositTransaction(
     const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
     const shareMint = vaultAccount.shareMint as PublicKey;
     const vaultTokenAccount = vaultAccount.vaultTokenAccount as PublicKey;
+    const underlyingMint = vaultAccount.underlyingMint as PublicKey;
 
     // Get user's token account for the underlying asset
     const userTokenAccount = await getAssociatedTokenAddress(
-        config.underlyingMint,
+        underlyingMint,
         wallet.publicKey
     );
 
@@ -370,9 +390,6 @@ export async function buildProcessWithdrawalTransaction(
     const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
     const program = getVaultProgram(provider);
 
-    const config = Object.values(VAULTS).find(v => v.assetId === assetId);
-    if (!config) throw new Error(`Unknown vault: ${assetId}`);
-
     const [vaultPda] = deriveVaultPda(assetId);
 
     // Fetch vault to get actual account addresses
@@ -381,6 +398,7 @@ export async function buildProcessWithdrawalTransaction(
     const vaultTokenAccount = vaultAccount.vaultTokenAccount as PublicKey;
     const premiumMint = vaultAccount.premiumMint as PublicKey;
     const vaultPremiumAccount = vaultAccount.premiumTokenAccount as PublicKey;
+    const underlyingMint = vaultAccount.underlyingMint as PublicKey;
 
     // Use provided epoch or default to previous epoch
     // NOTE: It is best practice to pass the exact epoch from pendingWithdrawal state
@@ -391,7 +409,7 @@ export async function buildProcessWithdrawalTransaction(
     const [shareEscrowPda] = deriveShareEscrowPda(vaultPda);
 
     const userTokenAccount = await getAssociatedTokenAddress(
-        config.underlyingMint,
+        underlyingMint,
         wallet.publicKey
     );
 
@@ -490,13 +508,13 @@ export async function getUserUnderlyingBalance(
     assetId: string
 ): Promise<number> {
     try {
-        const config = Object.values(VAULTS).find(v => v.assetId === assetId);
-        if (!config) return 0;
+        const [vaultPda] = deriveVaultPda(assetId);
 
-        const userTokenAccount = await getAssociatedTokenAddress(
-            config.underlyingMint,
-            userPubkey
-        );
+        const program = getReadOnlyProgram(connection);
+        const vaultAccount = await (program.account as any).vault.fetch(vaultPda);
+        const underlyingMint = vaultAccount.underlyingMint as PublicKey;
+
+        const userTokenAccount = await getAssociatedTokenAddress(underlyingMint, userPubkey);
 
         const accountInfo = await connection.getTokenAccountBalance(userTokenAccount);
         return Number(accountInfo.value.amount);

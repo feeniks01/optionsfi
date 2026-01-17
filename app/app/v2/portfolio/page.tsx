@@ -12,20 +12,33 @@ import {
 import { useAllVaults, useVault } from "../../../hooks/useVault";
 import { useWalletActivity, WalletActivity } from "../../../hooks/useWalletActivity";
 import { usePythPrices } from "../../../hooks/usePythPrices";
+import { getVaultConfig, getVaultConfigByAssetId } from "../../../lib/vault-config";
 
-// Vault metadata (without hardcoded prices - we use oracle)
-const VAULT_METADATA: Record<string, {
-    name: string;
-    symbol: string;
-    logo: string;
-    accentColor: string;
-    tier: "Normal" | "Conservative" | "Aggressive" | "Demo";
-    strikeOtm: number;
-    maxCap: number;
-}> = {
-    nvdax: { name: "NVDAx Vault", symbol: "NVDAx", logo: "/nvidiax_logo.png", accentColor: "#76B900", tier: "Normal", strikeOtm: 10, maxCap: 10 },
-    // demonvdax disabled: hide demo vault from all UI surfaces
-};
+function resolveVaultMeta(vaultId: string) {
+    const meta = getVaultConfigByAssetId(vaultId) || getVaultConfig(vaultId);
+    if (meta) {
+        return {
+            name: meta.name,
+            symbol: meta.symbol,
+            logo: meta.logo,
+            accentColor: meta.accentColor,
+            tier: meta.isDemo ? "Demo" : "Normal",
+            strikeOtm: Math.round(meta.strikeOffset * 100),
+            maxCap: 10,
+            decimals: meta.decimals,
+        };
+    }
+    return {
+        name: vaultId,
+        symbol: vaultId,
+        logo: "/nvidiax_logo.png",
+        accentColor: "#6B7280",
+        tier: "Normal" as const,
+        strikeOtm: 10,
+        maxCap: 10,
+        decimals: 6,
+    };
+}
 
 type ChartMode = "total_return" | "value" | "premium";
 
@@ -69,8 +82,8 @@ function ManagePositionModal({
     const [depositAmount, setDepositAmount] = useState("");
     const [withdrawAmount, setWithdrawAmount] = useState("");
 
-    const meta = VAULT_METADATA[position.vaultId];
-    const decimals = 6;
+    const meta = resolveVaultMeta(position.vaultId);
+    const decimals = meta.decimals;
 
     // Use the vault hook for this specific vault
     const {
@@ -361,7 +374,7 @@ export default function PortfolioPage() {
     const { connected, publicKey } = useWallet();
     const { vaults, userBalances, loading } = useAllVaults();
     const { activities: walletActivities, loading: activitiesLoading, refresh: refreshActivities } = useWalletActivity();
-    const { prices: oraclePrices, loading: pricesLoading, getPrice } = usePythPrices();
+    const { getPrice } = usePythPrices();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [chartMode, setChartMode] = useState<ChartMode>("premium");
@@ -380,12 +393,12 @@ export default function PortfolioPage() {
         const basis: Record<string, number> = {};
         walletActivities.forEach(activity => {
             // Use vaultId from activity if available, fallback to nvdax for legacy transactions
-            const vaultId = activity.vaultId || "nvdax";
+            const vaultId = activity.vaultId || getVaultConfig("nvdax")?.assetId || "NVDAx";
             if (!basis[vaultId]) basis[vaultId] = 0;
 
             const tokenAmount = activity.amount || 0;
             // Get the symbol for this vault to fetch the correct oracle price
-            const meta = VAULT_METADATA[vaultId];
+            const meta = resolveVaultMeta(vaultId);
             const priceAtTime = meta ? (getPrice(meta.symbol) || 140) : 140; // Use oracle price for this vault
 
             if (activity.type === "deposit") {
@@ -406,11 +419,10 @@ export default function PortfolioPage() {
         Object.entries(vaults).forEach(([id, vault]) => {
             const userShares = userBalances[id] ?? 0;
             if (vault && userShares > 0) {
-                const meta = VAULT_METADATA[id];
-                if (!meta) return;
+            const meta = resolveVaultMeta(id);
                 const oraclePrice = getPrice(meta.symbol) || 0;
                 const sharePrice = vault.sharePrice || 1;
-                const sharesUsd = (userShares / 1e6) * sharePrice * oraclePrice;
+                const sharesUsd = (userShares / Math.pow(10, meta.decimals)) * sharePrice * oraclePrice;
                 totalValue += sharesUsd;
             }
         });
@@ -419,12 +431,11 @@ export default function PortfolioPage() {
         Object.entries(vaults).forEach(([id, vault]) => {
             const userShares = userBalances[id] ?? 0;
             if (vault && userShares > 0) {
-                const meta = VAULT_METADATA[id];
-                if (!meta) return;
+                const meta = resolveVaultMeta(id);
 
                 const oraclePrice = getPrice(meta.symbol) || 0;
                 const sharePrice = vault.sharePrice || 1;
-                const sharesUsd = (userShares / 1e6) * sharePrice * oraclePrice;
+                const sharesUsd = (userShares / Math.pow(10, meta.decimals)) * sharePrice * oraclePrice;
 
                 // Get cost basis from deposit history
                 // NOTE: After vault migrations, old deposit history may not apply to new vault
@@ -830,7 +841,7 @@ export default function PortfolioPage() {
                                     {positions.map(p => (
                                         <div key={p.vaultId} className="flex items-center justify-between text-sm">
                                             <div className="flex items-center gap-2">
-                                                <img src={VAULT_METADATA[p.vaultId].logo} alt="" className="w-4 h-4 rounded-full" />
+                                                <img src={resolveVaultMeta(p.vaultId).logo} alt="" className="w-4 h-4 rounded-full" />
                                                 <span className="text-white">{p.symbol}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -873,7 +884,7 @@ export default function PortfolioPage() {
                                 <PositionRow
                                     key={position.vaultId}
                                     position={position}
-                                    meta={VAULT_METADATA[position.vaultId]}
+                                    meta={resolveVaultMeta(position.vaultId)}
                                     formatCurrency={formatCurrency}
                                     formatPercent={formatPercent}
                                     openMenu={openMenu}
@@ -1111,7 +1122,7 @@ function ChartContent({ chartData, chartMin, chartMax, minTime, timeRange, netDe
 
 // Position Row - With strategy line and better actions
 function PositionRow({ position, meta, formatCurrency, formatPercent, openMenu, setOpenMenu, onManage }: {
-    position: Position; meta: typeof VAULT_METADATA[string];
+    position: Position; meta: ReturnType<typeof resolveVaultMeta>;
     formatCurrency: (v: number) => string; formatPercent: (v: number, showSign?: boolean) => string;
     openMenu: string | null; setOpenMenu: (id: string | null) => void;
     onManage: (position: Position) => void;

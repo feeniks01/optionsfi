@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { VAULT_PROGRAM_ID, VAULTS, deriveVaultPda } from "../lib/vault-sdk";
+import { fetchAllVaultAccounts, deriveVaultPda } from "../lib/vault-sdk";
+import { isVaultEnabled } from "../lib/vault-config";
 
 export interface WalletActivity {
     signature: string;
@@ -81,6 +82,31 @@ export function useWalletActivity() {
                 return;
             }
 
+            const listCacheKey = "optionsfi_vault_list_v1";
+            const listTTL = 300000;
+            const now = Date.now();
+            let assetIds: string[] = [];
+
+            try {
+                const cachedList = localStorage.getItem(listCacheKey);
+                if (cachedList) {
+                    const { timestamp, ids } = JSON.parse(cachedList);
+                    if (now - timestamp < listTTL) {
+                        assetIds = ids;
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to parse vault list cache", e);
+            }
+
+            if (assetIds.length === 0) {
+                const vaultAccounts = await fetchAllVaultAccounts(connection);
+                assetIds = vaultAccounts
+                    .map(v => v.assetId)
+                    .filter(id => isVaultEnabled(id));
+                localStorage.setItem(listCacheKey, JSON.stringify({ timestamp: now, ids: assetIds }));
+            }
+
             // Fetch transactions for new signatures
             const BATCH_SIZE = 5;
             const BATCH_DELAY_MS = 200;
@@ -99,10 +125,10 @@ export function useWalletActivity() {
                         let vaultId: string | undefined;
                         let involvesActiveVault = false;
 
-                        for (const [id, config] of Object.entries(VAULTS)) {
-                            const [vaultPda] = deriveVaultPda(config.assetId);
+                        for (const assetId of assetIds) {
+                            const [vaultPda] = deriveVaultPda(assetId);
                             if (accountKeys.some(key => key.pubkey.toString() === vaultPda.toString())) {
-                                vaultId = id;
+                                vaultId = assetId;
                                 involvesActiveVault = true;
                                 break;
                             }

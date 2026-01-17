@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Loader2, TrendingUp, Wallet, Clock, Vault, Briefcase } from "lucide-react";
 import { useAllVaults } from "../../hooks/useVault";
-import { VAULT_CONFIG, computeTier, getPythFeedId } from "../../lib/vault-config";
+import { computeTier, getAllVaultConfigs, getVaultConfigByAssetId } from "../../lib/vault-config";
+import { usePythPrices } from "../../hooks/usePythPrices";
 import { useState, useEffect } from "react";
 import { calculateVaultTiming } from "../../lib/vault-timing";
-
-const HERMES_URL = "https://hermes.pyth.network";
 
 type SortOption = "tvl" | "apy" | "roll";
 
@@ -48,29 +47,10 @@ function getNextRollTime(): { hours: number; minutes: number; timeString: string
 
 export default function V2EarnDashboard() {
     const { connected } = useWallet();
-    const { vaults, userBalances, loading } = useAllVaults();
-    const [nvdaPrice, setNvdaPrice] = useState<number>(0);
+    const { vaults, userBalances, vaultIds, loading } = useAllVaults();
+    const { getPrice: getOraclePrice } = usePythPrices();
     const [nextRoll, setNextRoll] = useState(getNextRollTime());
     const [sortBy, setSortBy] = useState<SortOption>("tvl");
-
-    // Fetch NVDA price for TVL calculation
-    useEffect(() => {
-        const fetchPrice = async () => {
-            const feedId = getPythFeedId("nvdax");
-            if (!feedId) return;
-            try {
-                const response = await fetch(`${HERMES_URL}/v2/updates/price/latest?ids[]=${feedId}&parsed=true`);
-                const data = await response.json();
-                if (data.parsed?.[0]) {
-                    const priceData = data.parsed[0].price;
-                    setNvdaPrice(parseFloat(priceData.price) * Math.pow(10, priceData.expo));
-                }
-            } catch (e) { console.error(e); }
-        };
-        fetchPrice();
-        const interval = setInterval(fetchPrice, 30000);
-        return () => clearInterval(interval);
-    }, []);
 
     // Update next roll countdown
     useEffect(() => {
@@ -78,37 +58,45 @@ export default function V2EarnDashboard() {
         return () => clearInterval(interval);
     }, []);
 
-    const vaultList = Object.entries(VAULT_CONFIG).map(([id, meta]) => {
-        const liveData = vaults[id];
-        const userShares = userBalances[id] ?? 0;
+    const resolvedVaultIds = vaultIds.length > 0
+        ? vaultIds
+        : getAllVaultConfigs().map(v => v.assetId);
+
+    const vaultList = resolvedVaultIds.map((assetId) => {
+        const meta = getVaultConfigByAssetId(assetId);
+        const id = meta?.id ?? assetId.toLowerCase();
+        const liveData = vaults[assetId];
+        const userShares = userBalances[assetId] ?? 0;
+        const decimals = meta?.decimals ?? 6;
 
         // Get TVL from on-chain data (in tokens)
         const tvlTokens = liveData?.tvl ?? 0;
         const sharePrice = liveData?.sharePrice ?? 1.0;
+        const oraclePrice = meta ? (getOraclePrice(meta.symbol) || 0) : 0;
 
         // Convert to USD
-        const tvlUsd = tvlTokens * nvdaPrice;
+        const tvlUsd = tvlTokens * oraclePrice;
 
         // User balance in USD: shares * sharePrice (tokens per share) * price
-        const userValueUsd = (userShares / 1e6) * sharePrice * nvdaPrice;
+        const userValueUsd = (userShares / Math.pow(10, decimals)) * sharePrice * oraclePrice;
 
         // APY comes from on-chain calculation (default to 0 if not live)
         const apy = liveData?.apy ?? 0;
         // Is vault live on-chain? Demo vaults are always "live" for testing
-        const isLive = !!liveData || meta.isDemo;
+        const isLive = !!liveData || (meta?.isDemo ?? false);
         // Compute tier dynamically from APY
-        const tier = computeTier(apy, meta.isDemo);
+        const tier = computeTier(apy, meta?.isDemo ?? false);
 
         // Standardized timing logic
-        const timing = calculateVaultTiming(liveData, id);
+        const timing = calculateVaultTiming(liveData, assetId);
         const rollTime = timing.nextRollIn;
 
         return {
             id,
-            name: meta.name,
-            symbol: meta.symbol,
-            strategy: meta.strategy,
-            logo: meta.logo,
+            name: meta?.name ?? assetId,
+            symbol: meta?.symbol ?? assetId,
+            strategy: meta?.strategy ?? "Covered Call",
+            logo: meta?.logo ?? "/nvidiax_logo.png",
             tier,
             apy,
             tvlTokens,
@@ -116,7 +104,7 @@ export default function V2EarnDashboard() {
             userShares,
             userValueUsd,
             isLive,
-            isDemo: meta.isDemo,
+            isDemo: meta?.isDemo ?? false,
             rollTime,
         };
     });
@@ -131,8 +119,8 @@ export default function V2EarnDashboard() {
     }, 0);
 
     // Find the soonest actual vault roll to show in the hero section
-    const soonestRoll = Object.entries(VAULT_CONFIG).reduce((best, [id, _]) => {
-        const timing = calculateVaultTiming(vaults[id], id);
+    const soonestRoll = resolvedVaultIds.reduce((best, assetId) => {
+        const timing = calculateVaultTiming(vaults[assetId], assetId);
         if (timing.nextRollTime === 0) return best;
         if (best === null || timing.nextRollTime < best.nextRollTime) return timing;
         return best;

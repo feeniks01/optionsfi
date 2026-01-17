@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import {
     fetchVaultData,
     VaultData,
-    VAULTS,
+    fetchAllVaultAccounts,
     buildDepositTransaction,
     buildRequestWithdrawalTransaction,
     buildProcessWithdrawalTransaction,
@@ -16,6 +16,7 @@ import {
     getUserUnderlyingBalance,
     getUserWithdrawalRequest,
 } from "../lib/vault-sdk";
+import { getVaultConfig, isVaultEnabled } from "../lib/vault-config";
 
 // Use custom RPC if set, otherwise use a more reliable devnet endpoint
 // The default api.devnet.solana.com is often rate-limited
@@ -65,6 +66,7 @@ export function useVault(assetId: string): UseVaultReturn {
     const { connection } = useConnection();
     const wallet = useWallet();
     const { settings } = useSettings();
+    const resolvedAssetId = getVaultConfig(assetId)?.assetId ?? assetId;
 
     const [vaultData, setVaultData] = useState<VaultData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -85,17 +87,8 @@ export function useVault(assetId: string): UseVaultReturn {
     // Fetch vault and user data
     const fetchData = useCallback(async (forceRefresh = false) => {
         try {
-            const config = VAULTS[assetId.toLowerCase()];
-            if (!config) {
-                if (isInitialLoad.current) {
-                    isInitialLoad.current = false;
-                    setLoading(false);
-                }
-                return;
-            }
-
             // Use resolved assetId for cache key to prevent stale data after vault migrations
-            const cacheKey = `optionsfi_vault_v2_${config.assetId}_${wallet.publicKey?.toString() || 'anon'}`;
+            const cacheKey = `optionsfi_vault_v2_${resolvedAssetId}_${wallet.publicKey?.toString() || 'anon'}`;
             const now = Date.now();
             const TTL = settings.refreshInterval; // Use dynamic TTL based on settings
 
@@ -129,14 +122,8 @@ export function useVault(assetId: string): UseVaultReturn {
             }
             setError(null);
 
-            // Get normalized asset ID
-            const normalizedAssetId = assetId.toUpperCase().endsWith('X')
-                ? assetId.charAt(0).toUpperCase() + assetId.slice(1, -1).toUpperCase() + 'x'
-                : assetId;
-
-            // config was already fetched and validated at start of function
-
-            const data = await fetchVaultData(connection, config.assetId);
+            // Use resolved asset ID for on-chain fetch
+            const data = await fetchVaultData(connection, resolvedAssetId);
 
             // If fetch returned null (RPC error/timeout), keep previous valid data
             if (!data) {
@@ -166,8 +153,8 @@ export function useVault(assetId: string): UseVaultReturn {
             // Fetch user balances if wallet connected
             if (wallet.publicKey) {
                 const [s, u] = await Promise.all([
-                    getUserShareBalance(connection, wallet.publicKey, config.assetId),
-                    getUserUnderlyingBalance(connection, wallet.publicKey, config.assetId),
+                    getUserShareBalance(connection, wallet.publicKey, resolvedAssetId),
+                    getUserUnderlyingBalance(connection, wallet.publicKey, resolvedAssetId),
                 ]);
                 shares = s;
                 underlying = u;
@@ -183,7 +170,7 @@ export function useVault(assetId: string): UseVaultReturn {
                         signTransaction: wallet.signTransaction,
                         signAllTransactions: wallet.signAllTransactions!,
                     } as Wallet;
-                    withdrawal = await getUserWithdrawalRequest(connection, anchorWallet, config.assetId);
+                    withdrawal = await getUserWithdrawalRequest(connection, anchorWallet, resolvedAssetId);
                     setPendingWithdrawal(withdrawal);
                 }
             } else {
@@ -215,7 +202,7 @@ export function useVault(assetId: string): UseVaultReturn {
                 setLoading(false);
             }
         }
-    }, [assetId, connection, wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions, settings.refreshInterval]);
+    }, [assetId, resolvedAssetId, connection, wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions, settings.refreshInterval]);
 
     useEffect(() => {
         fetchData();
@@ -267,9 +254,6 @@ export function useVault(assetId: string): UseVaultReturn {
             throw new Error("Wallet not connected");
         }
 
-        const config = VAULTS[assetId.toLowerCase()];
-        if (!config) throw new Error("Unknown vault");
-
         const toastId = toast.loading("Preparing deposit...");
 
         try {
@@ -286,7 +270,7 @@ export function useVault(assetId: string): UseVaultReturn {
             const tx = await buildDepositTransaction(
                 connection,
                 anchorWallet,
-                config.assetId,
+                resolvedAssetId,
                 amount
             );
 
@@ -311,9 +295,6 @@ export function useVault(assetId: string): UseVaultReturn {
             throw new Error("Wallet not connected");
         }
 
-        const config = VAULTS[assetId.toLowerCase()];
-        if (!config) throw new Error("Unknown vault");
-
         const toastId = toast.loading("Preparing withdrawal request...");
 
         try {
@@ -330,7 +311,7 @@ export function useVault(assetId: string): UseVaultReturn {
             const tx = await buildRequestWithdrawalTransaction(
                 connection,
                 anchorWallet,
-                config.assetId,
+                resolvedAssetId,
                 shares
             );
 
@@ -355,9 +336,6 @@ export function useVault(assetId: string): UseVaultReturn {
             throw new Error("Wallet not connected");
         }
 
-        const config = VAULTS[assetId.toLowerCase()];
-        if (!config) throw new Error("Unknown vault");
-
         const toastId = toast.loading("Processing withdrawal...");
 
         try {
@@ -374,7 +352,7 @@ export function useVault(assetId: string): UseVaultReturn {
             const tx = await buildProcessWithdrawalTransaction(
                 connection,
                 anchorWallet,
-                config.assetId,
+                resolvedAssetId,
                 pendingWithdrawal?.requestEpoch // Pass the known epoch
             );
 
@@ -427,6 +405,7 @@ export function useAllVaults() {
     const { publicKey } = useWallet();
     const [vaults, setVaults] = useState<Record<string, VaultData | null>>({});
     const [userBalances, setUserBalances] = useState<Record<string, number>>({});
+    const [vaultIds, setVaultIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const isInitialLoad = useRef(true);
@@ -443,6 +422,8 @@ export function useAllVaults() {
             const cacheKey = `optionsfi_all_vaults_v1_${publicKey?.toString() || 'anon'}`;
             const now = Date.now();
             const TTL = 30000; // 30 seconds
+            const listCacheKey = "optionsfi_vault_list_v1";
+            const listTTL = 300000; // 5 minutes
 
             // Try load from cache first
             if (!forceRefresh) {
@@ -473,32 +454,56 @@ export function useAllVaults() {
             const vaultResults: Record<string, VaultData | null> = {};
             const balanceResults: Record<string, number> = {};
 
-            const vaultEntries = Object.entries(VAULTS);
-            await Promise.all(vaultEntries.map(async ([key, config]) => {
+            let assetIds: string[] = [];
+            if (!forceRefresh) {
                 try {
-                    const data = await fetchVaultData(connection, config.assetId);
+                    const cachedList = localStorage.getItem(listCacheKey);
+                    if (cachedList) {
+                        const { timestamp, ids } = JSON.parse(cachedList);
+                        if (now - timestamp < listTTL) {
+                            assetIds = ids;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse vault list cache", e);
+                }
+            }
+
+            if (assetIds.length === 0) {
+                const vaultAccounts = await fetchAllVaultAccounts(connection);
+                assetIds = vaultAccounts
+                    .map(v => v.assetId)
+                    .filter(id => isVaultEnabled(id));
+                localStorage.setItem(listCacheKey, JSON.stringify({ timestamp: now, ids: assetIds }));
+            }
+
+            setVaultIds(assetIds);
+
+            await Promise.all(assetIds.map(async (assetId) => {
+                try {
+                    const data = await fetchVaultData(connection, assetId);
 
                     // Client-side smoothing: If APY is 0 (e.g. fresh roll), use previous valid APY if available
                     // This prevents the "flash to 0" UX issue
                     if (data && data.apy === 0) {
-                        const prevData = vaultsRef.current[key];
+                        const prevData = vaultsRef.current[assetId];
                         if (prevData && prevData.apy > 0) {
                             data.apy = prevData.apy;
                         }
                     }
 
-                    vaultResults[key] = data;
+                    vaultResults[assetId] = data;
 
                     if (publicKey) {
-                        const balance = await getUserShareBalance(connection, publicKey, config.assetId);
-                        balanceResults[key] = balance;
+                        const balance = await getUserShareBalance(connection, publicKey, assetId);
+                        balanceResults[assetId] = balance;
                     } else {
-                        balanceResults[key] = 0;
+                        balanceResults[assetId] = 0;
                     }
                 } catch (err) {
-                    console.error(`Error fetching ${key}:`, err);
-                    vaultResults[key] = null;
-                    balanceResults[key] = 0;
+                    console.error(`Error fetching ${assetId}:`, err);
+                    vaultResults[assetId] = null;
+                    balanceResults[assetId] = 0;
                 }
             }));
 
@@ -534,7 +539,7 @@ export function useAllVaults() {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    return { vaults, userBalances, loading, error, refresh: fetchData };
+    return { vaults, userBalances, vaultIds, loading, error, refresh: fetchData };
 }
 
 /**

@@ -9,7 +9,7 @@ import { useVault } from "../../../../hooks/useVault";
 import { useVaultTiming } from "../../../../hooks/useVaultTiming";
 import { useRfq } from "../../../../hooks/useRfq";
 import { getVaultTheme, type VaultTheme } from "../../../../themes/vaultThemes";
-import { VAULT_CONFIG, getVaultConfig, getPythFeedId, computeTier } from "../../../../lib/vault-config";
+import { getVaultConfig, getPythFeedId, computeTier } from "../../../../lib/vault-config";
 
 const HERMES_URL = "https://hermes.pyth.network";
 

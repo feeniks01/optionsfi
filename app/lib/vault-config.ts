@@ -1,11 +1,20 @@
 /**
- * Centralized vault configuration - Static metadata only
- * 
+ * Centralized vault configuration (config/vaults.json).
+ *
  * Dynamic data (TVL, APY, price, tier) should be fetched from on-chain
  * or computed based on live data.
  */
 
+import vaultsJson from "../../config/vaults.json";
+
+export interface VaultShareMetadata {
+    name: string;
+    symbol: string;
+    uri: string;
+}
+
 export interface VaultMetadata {
+    id: string;
     name: string;
     symbol: string;
     assetId: string;      // On-chain asset ID for PDA derivation
@@ -17,29 +26,50 @@ export interface VaultMetadata {
     isDemo: boolean;
     decimals: number;
     pythFeedId: string;
+    underlyingMint?: string;
+    premiumMint?: string;
+    oracleTicker?: string;
+    utilizationCapBps?: number;
+    minEpochDuration?: number;
+    enabled?: boolean;
+    shareMetadata?: VaultShareMetadata;
 }
 
-export const VAULT_CONFIG: Record<string, VaultMetadata> = {
-    // Production vaults
-    nvdax: {
-        name: "NVDAx Vault",
-        symbol: "NVDAx",
-        assetId: "NVDAx",
-        strategy: "Covered Call",
-        logo: "/nvidiax_logo.png",
-        accentColor: "#76B900",
-        strikeOffset: 0.10,
-        premiumRange: [0.8, 1.2],
-        isDemo: false,
-        decimals: 6,
-        pythFeedId: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
-    },
-    // demonvdax disabled: hide demo vault from all UI surfaces
-};
+const ALL_VAULTS: VaultMetadata[] = (vaultsJson as VaultMetadata[]).map(v => ({
+    ...v,
+    enabled: v.enabled !== false,
+}));
+
+export const VAULT_CONFIG: Record<string, VaultMetadata> = ALL_VAULTS
+    .filter(v => v.enabled)
+    .reduce((acc, v) => {
+        acc[v.id.toLowerCase()] = v;
+        return acc;
+    }, {} as Record<string, VaultMetadata>);
+
+export function getAllVaultConfigs(): VaultMetadata[] {
+    return Object.values(VAULT_CONFIG);
+}
+
+export function getAllVaultConfigsIncludingDisabled(): VaultMetadata[] {
+    return ALL_VAULTS;
+}
 
 // Helper to get vault by ticker (lowercase key)
-export function getVaultConfig(ticker: string): VaultMetadata | undefined {
-    return VAULT_CONFIG[ticker.toLowerCase()];
+export function getVaultConfig(tickerOrAssetId: string): VaultMetadata | undefined {
+    const key = tickerOrAssetId.toLowerCase();
+    if (VAULT_CONFIG[key]) return VAULT_CONFIG[key];
+    return Object.values(VAULT_CONFIG).find(v => v.assetId.toLowerCase() === key || v.symbol.toLowerCase() === key);
+}
+
+export function getVaultConfigByAssetId(assetId: string): VaultMetadata | undefined {
+    return ALL_VAULTS.find(v => v.assetId.toLowerCase() === assetId.toLowerCase());
+}
+
+export function isVaultEnabled(assetId: string): boolean {
+    const config = getVaultConfigByAssetId(assetId);
+    if (!config) return true;
+    return config.enabled !== false;
 }
 
 // Get all vault tickers
@@ -49,7 +79,7 @@ export function getAllVaultTickers(): string[] {
 
 // Get Pyth feed ID for a vault
 export function getPythFeedId(ticker: string): string | undefined {
-    return VAULT_CONFIG[ticker.toLowerCase()]?.pythFeedId;
+    return getVaultConfig(ticker)?.pythFeedId;
 }
 
 // Compute tier based on APY dynamically
